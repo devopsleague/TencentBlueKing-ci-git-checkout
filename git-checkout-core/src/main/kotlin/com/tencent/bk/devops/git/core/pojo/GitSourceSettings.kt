@@ -30,6 +30,7 @@ package com.tencent.bk.devops.git.core.pojo
 import com.tencent.bk.devops.git.core.enums.PullStrategy
 import com.tencent.bk.devops.git.core.enums.PullType
 import com.tencent.bk.devops.git.core.enums.ScmType
+import com.tencent.bk.devops.git.core.util.GitUtil
 
 data class GitSourceSettings(
 
@@ -60,7 +61,7 @@ data class GitSourceSettings(
     /**
      * The commit to checkout and the value exists only when retrying
      */
-    val commit: String = "",
+    val retryStartPoint: String = "",
     /**
      * 拉取策略
      */
@@ -144,11 +145,21 @@ data class GitSourceSettings(
     /**
      * The MR/PR's source repository url
      */
-    var sourceRepositoryUrl: String = "",
+    var hookSourceUrl: String? = null,
     /**
      * The MR/PR's source branch name
      */
-    var sourceBranchName: String = "",
+    var hookSourceBranch: String? = null,
+    /**
+     * 目标仓库地址
+     */
+    val hookTargetUrl: String? = null,
+    /**
+     * 目标分支
+     */
+    val hookTargetBranch: String? = null,
+
+    val hookRepoUrl: String? = null,
 
     /**配置参数**/
     var autoCrlf: String? = "",
@@ -166,4 +177,18 @@ data class GitSourceSettings(
      * 是否开启调试功能
      */
     var enableTrace: Boolean? = false
-)
+) {
+    val hookUrlEqualsUrl: Boolean
+        get() = GitUtil.isSameRepository(
+            repositoryUrl = repositoryUrl,
+            otherRepositoryUrl = hookRepoUrl,
+            hostNameList = compatibleHostList
+        )
+
+    val sourceUrlEqualsTargetUrl: Boolean
+        get() = GitUtil.isSameRepository(
+            repositoryUrl = hookTargetUrl ?: "",
+            otherRepositoryUrl = hookSourceUrl,
+            hostNameList = compatibleHostList
+        )
+}

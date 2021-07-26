@@ -70,22 +70,22 @@ class InitRepoHandler(
             // if source repository is fork repo, adding devops-virtual-origin
             if (preMerge && !GitUtil.isSameRepository(
                     repositoryUrl = repositoryUrl,
-                    otherRepositoryUrl = sourceRepositoryUrl,
+                    otherRepositoryUrl = hookSourceUrl,
                     hostNameList = compatibleHostList
                 )
             ) {
-                git.remoteAdd(GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME, sourceRepositoryUrl)
+                git.remoteAdd(GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME, hookSourceUrl)
             }
         } else {
             git.remoteSetUrl(GitConstants.ORIGIN_REMOTE_NAME, repositoryUrl)
             if (preMerge && !GitUtil.isSameRepository(
                     repositoryUrl = repositoryUrl,
-                    otherRepositoryUrl = sourceRepositoryUrl,
+                    otherRepositoryUrl = hookSourceUrl,
                     hostNameList = compatibleHostList
                 )
             ) {
                 git.remoteRemove(GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME)
-                git.remoteAdd(GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME, sourceRepositoryUrl)
+                git.remoteAdd(GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME, hookSourceUrl)
             }
         }
         git.remoteList()

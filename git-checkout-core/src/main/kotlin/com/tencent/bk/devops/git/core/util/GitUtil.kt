@@ -67,9 +67,9 @@ object GitUtil {
         }
     }
 
-    fun isSameRepository(repositoryUrl: String, otherRepositoryUrl: String?, hostNameList: List<String>?): Boolean {
-        if (otherRepositoryUrl == null) {
-            return true
+    fun isSameRepository(repositoryUrl: String?, otherRepositoryUrl: String?, hostNameList: List<String>?): Boolean {
+        if (repositoryUrl == null || otherRepositoryUrl == null) {
+            return false
         }
         val serverUrl = getServerInfo(url = repositoryUrl)
         val sourceServerUrl = getServerInfo(url = otherRepositoryUrl)

@@ -50,7 +50,7 @@ class RefHelper(
                 PullType.BRANCH -> {
                     val refSpec = mutableListOf("--no-tags", "+refs/heads/$ref:refs/remotes/$ORIGIN_REMOTE_NAME/$ref")
                     if (isAddSourceRef()) {
-                        refSpec.add("+refs/heads/$sourceBranchName:refs/remotes/$ORIGIN_REMOTE_NAME/$sourceBranchName")
+                        refSpec.add("+refs/heads/$hookSourceBranch:refs/remotes/$ORIGIN_REMOTE_NAME/$hookSourceBranch")
                     }
                     return refSpec
                 }
@@ -64,18 +64,18 @@ class RefHelper(
 
     fun getSourceRefSpec(): List<String> {
         return listOf(
-            "+refs/heads/${settings.sourceBranchName}:" +
-                "refs/remotes/$DEVOPS_VIRTUAL_REMOTE_NAME/${settings.sourceBranchName}")
+            "+refs/heads/${settings.hookSourceBranch}:" +
+                "refs/remotes/$DEVOPS_VIRTUAL_REMOTE_NAME/${settings.hookSourceBranch}")
     }
 
     fun getCheckInfo(): CheckoutInfo {
         with(settings) {
             return when (pullType) {
                 PullType.BRANCH -> {
-                    val startPoint = if (commit.isBlank()) {
+                    val startPoint = if (retryStartPoint.isBlank()) {
                         "refs/remotes/$ORIGIN_REMOTE_NAME/$ref"
                     } else {
-                        commit
+                        retryStartPoint
                     }
                     if (preMerge) {
                         CheckoutInfo(
@@ -96,27 +96,22 @@ class RefHelper(
 
     fun getMergeInfo(): String {
         with(settings) {
-            return if (GitUtil.isSameRepository(
-                    repositoryUrl = repositoryUrl,
-                    otherRepositoryUrl = sourceRepositoryUrl,
-                    hostNameList = compatibleHostList
-                )
-            ) {
+            return if (sameRepository) {
                 // if code_git enable pre_push, executing `git merge FETCH_HEAD`
-                if (GitUtil.isPrePushBranch(sourceBranchName)) {
+                if (GitUtil.isPrePushBranch(hookSourceBranch)) {
                     FETCH_HEAD
                 } else {
-                    "$ORIGIN_REMOTE_NAME/$sourceBranchName"
+                    "$ORIGIN_REMOTE_NAME/$hookSourceBranch"
                 }
             } else {
-                "$DEVOPS_VIRTUAL_REMOTE_NAME/$sourceBranchName"
+                "$DEVOPS_VIRTUAL_REMOTE_NAME/$hookSourceBranch"
             }
         }
     }
 
     private fun GitSourceSettings.isAddSourceRef() = preMerge && GitUtil.isSameRepository(
         repositoryUrl = repositoryUrl,
-        otherRepositoryUrl = sourceRepositoryUrl,
+        otherRepositoryUrl = hookSourceUrl,
         hostNameList = compatibleHostList
     )
 }

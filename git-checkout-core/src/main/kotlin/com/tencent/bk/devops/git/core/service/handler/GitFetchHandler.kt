@@ -56,7 +56,7 @@ class GitFetchHandler(
     private fun GitSourceSettings.fetchSourceRepository() {
         if (preMerge && !GitUtil.isSameRepository(
                 repositoryUrl = repositoryUrl,
-                otherRepositoryUrl = sourceRepositoryUrl,
+                otherRepositoryUrl = hookSourceUrl,
                 hostNameList = compatibleHostList
             )
         ) {

@@ -29,5 +29,8 @@ data class GitMetricsInfo(
     val bkRepoDownloadResult: String,
     val errorInfo: String,
     val transferRate: Double,
-    val totalSize: Double
+    val totalSize: Double,
+    val authHelper: String,
+    val osName: String,
+    val thirdParty: Boolean
 )

@@ -29,7 +29,6 @@ package com.tencent.bk.devops.git.core.service
 
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.constant.GitConstants.GCM_INTERACTIVE
-import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_CREDENTIAL_HELPER
 import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_LFS_FORCE_PROGRESS
 import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_LFS_SKIP_SMUDGE
 import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_TERMINAL_PROMPT
@@ -37,25 +36,26 @@ import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_TRACE
 import com.tencent.bk.devops.git.core.constant.GitConstants.HOME
 import com.tencent.bk.devops.git.core.constant.GitConstants.SUPPORT_PARTIAL_CLONE_GIT_VERSION
 import com.tencent.bk.devops.git.core.constant.GitConstants.SUPPORT_RECURSE_SUBMODULES_VERSION
+import com.tencent.bk.devops.git.core.constant.GitConstants.SUPPORT_SUBMODULE_SYNC_RECURSIVE_GIT_VERSION
+import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.FilterValueEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
-import com.tencent.bk.devops.git.core.enums.OSType
 import com.tencent.bk.devops.git.core.exception.GitExecuteException
 import com.tencent.bk.devops.git.core.exception.RetryException
 import com.tencent.bk.devops.git.core.pojo.CommitLogInfo
 import com.tencent.bk.devops.git.core.pojo.GitOutput
 import com.tencent.bk.devops.git.core.service.helper.RetryHelper
 import com.tencent.bk.devops.git.core.service.helper.VersionHelper
-import com.tencent.bk.devops.git.core.util.AgentEnv
 import com.tencent.bk.devops.git.core.util.CommandUtil
 import com.tencent.bk.devops.git.core.util.RegexUtil
 import com.tencent.devops.git.log.LogType
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.InputStream
 
 @Suppress("ALL")
 class GitCommandManager(
-    private val workingDirectory: File,
+    val workingDirectory: File,
     val lfs: Boolean = false
 ) {
 
@@ -182,7 +182,7 @@ class GitCommandManager(
         configValueRegex: String? = null,
         configScope: GitConfigScope = GitConfigScope.LOCAL,
         configFile: String? = null
-    ): String {
+    ): List<String> {
         val output = execGit(
             args = configArgs(
                 configKey = configKey,
@@ -194,9 +194,9 @@ class GitCommandManager(
             allowAllExitCodes = true
         )
         if (output.exitCode != 0) {
-            return ""
+            return emptyList()
         }
-        return output.stdOut
+        return output.stdOuts
     }
 
     fun tryConfigUnset(
@@ -267,7 +267,7 @@ class GitCommandManager(
             #2 当构建机重启后，worker-agent自启动会导致HOME环境变量丢失,在执行全局配置时会报fatal: $HOME not set
             将全局环境变量变成本地,此时凭证无法全局传递，只能在当前仓库传递
          */
-        if (System.getenv(HOME) == null && configScope == GitConfigScope.GLOBAL) {
+        if (System.getenv(HOME) == null && gitEnv[HOME] == null && configScope == GitConfigScope.GLOBAL) {
             scope = GitConfigScope.LOCAL
         }
         // 低于git 1.9以下的版本没有--local参数,所以--local直接去掉
@@ -287,31 +287,26 @@ class GitCommandManager(
         return args
     }
 
-    fun tryDisableOtherGitHelpers(): Boolean {
-        // windows执行git config --local credential.helper 不生效,git config --local credential.helper ""才生效
-        val helperValue = if (AgentEnv.getOS() == OSType.WINDOWS) {
-            "\"\""
-        } else {
-            ""
-        }
-        val output = execGit(
-            args = listOf("config", "--local", GIT_CREDENTIAL_HELPER, helperValue),
-            allowAllExitCodes = true
+    fun tryDisableOtherGitHelpers(configScope: GitConfigScope = GitConfigScope.LOCAL) {
+        CommandUtil.execute(
+            command = "git config ${configScope.arg} credential.helper ''",
+            workingDirectory = workingDirectory,
+            printLogger = true
         )
-        return output.exitCode == 0
     }
 
     fun setEnvironmentVariable(name: String, value: String) {
         gitEnv[name] = value
     }
 
-    fun removeEnvironmentVariable(name: String) {
-        gitEnv.remove(name)
+    fun removeEnvironmentVariable(name: String): String? {
+        return gitEnv.remove(name)
     }
 
     fun submoduleSync(recursive: Boolean, path: String) {
         val args = mutableListOf("submodule", "sync")
-        if (recursive) {
+        // git submodule sync --recursive在1.8.1才支持
+        if (recursive && isAtLeastVersion(SUPPORT_SUBMODULE_SYNC_RECURSIVE_GIT_VERSION)) {
             args.add("--recursive")
         }
         if (path.isNotBlank()) {
@@ -327,15 +322,6 @@ class GitCommandManager(
         }
         args.add(command)
         execGit(args = args, allowAllExitCodes = true, logType = LogType.PROGRESS)
-    }
-
-    fun submoduleForeach(command: List<String>, recursive: Boolean) {
-        val args = mutableListOf("submodule", "foreach")
-        if (recursive) {
-            args.add("--recursive")
-        }
-        args.addAll(command)
-        execGit(args = args, allowAllExitCodes = true)
     }
 
     fun submoduleUpdate(recursive: Boolean, path: String, submoduleRemote: Boolean) {
@@ -413,8 +399,6 @@ class GitCommandManager(
                 }
             }
         }
-        // 重试成功移除调试信息
-        gitEnv.remove(GIT_TRACE)
     }
 
     fun lfsInstall() {
@@ -485,6 +469,9 @@ class GitCommandManager(
     }
 
     fun isAtLeastVersion(requestedVersion: Long): Boolean {
+        if (gitVersion == 0L) {
+            getGitVersion()
+        }
         return VersionHelper.isAtLeastVersion(
             gitVersion = gitVersion,
             requestedVersion = requestedVersion
@@ -526,6 +513,21 @@ class GitCommandManager(
         val args = mutableListOf("read-tree")
         args.addAll(options)
         execGit(args = args, allowAllExitCodes = true)
+    }
+
+    fun credential(action: CredentialActionEnum, inputStream: InputStream) {
+        val args = listOf("credential", action.value)
+        CommandUtil.execute(
+            workingDirectory = workingDirectory,
+            executable = "git",
+            args = args,
+            runtimeEnv = gitEnv,
+            inputStream = inputStream,
+            allowAllExitCodes = true,
+            printLogger = false,
+            // git 低版本的credential-cache错误流没有关闭,导致程序会挂起,需要不捕获错误流
+            handleErrStream = false
+        )
     }
 
     private fun execGit(

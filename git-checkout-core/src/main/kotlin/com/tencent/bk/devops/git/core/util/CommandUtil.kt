@@ -41,6 +41,7 @@ import com.tencent.devops.git.log.GitLogOutputStream
 import com.tencent.devops.git.log.LogType
 import org.apache.commons.exec.CommandLine
 import org.apache.commons.exec.ExecuteException
+import org.apache.commons.exec.LogOutputStream
 import org.apache.commons.exec.PumpStreamHandler
 import org.apache.commons.exec.environment.EnvironmentUtils
 import org.apache.commons.io.IOUtils
@@ -54,7 +55,7 @@ object CommandUtil {
      */
     private const val MAX_LOG_SIZE = 100
 
-    @SuppressWarnings("LongParameterList", "ComplexMethod")
+    @SuppressWarnings("LongParameterList", "ComplexMethod", "LongMethod")
     fun execute(
         workingDirectory: File? = null,
         executable: String,
@@ -63,7 +64,8 @@ object CommandUtil {
         inputStream: InputStream? = null,
         allowAllExitCodes: Boolean = false,
         logType: LogType = LogType.TEXT,
-        printLogger: Boolean = true
+        printLogger: Boolean = true,
+        handleErrStream: Boolean = true
     ): GitOutput {
         val executor = CommandLineExecutor()
         if (workingDirectory != null) {
@@ -87,32 +89,36 @@ object CommandUtil {
                     gitErrors = tmpGitErrors
                 }
                 gitErrors = parseError(line.trim())
-                stdOuts.add(tmpLine)
+                stdOuts.add(line)
             }
         }
 
-        val errorStream = object : GitLogOutputStream(logType) {
-            override fun processLine(line: String?, level: Int) {
-                if (line == null) {
-                    return
+        val errorStream = if (handleErrStream) {
+            object : GitLogOutputStream(logType) {
+                override fun processLine(line: String?, level: Int) {
+                    if (line == null) {
+                        return
+                    }
+                    val tmpLine = SensitiveLineParser.onParseLine(line)
+                    if (printLogger && !allowAllExitCodes) {
+                        System.err.println("  $tmpLine")
+                    }
+                    val tmpGitErrors = parseError(line.trim())
+                    if (tmpGitErrors != null) {
+                        gitErrors = tmpGitErrors
+                    }
+                    val tmpGitPackingPhase = RegexUtil.parseReport(tmpLine)
+                    if (tmpGitPackingPhase != null) {
+                        gitPackingPhase = tmpGitPackingPhase
+                    }
+                    if (errOuts.size > MAX_LOG_SIZE) {
+                        errOuts.clear()
+                    }
+                    errOuts.add(line)
                 }
-                val tmpLine = SensitiveLineParser.onParseLine(line)
-                if (printLogger && !allowAllExitCodes) {
-                    System.err.println("  $tmpLine")
-                }
-                val tmpGitErrors = parseError(line.trim())
-                if (tmpGitErrors != null) {
-                    gitErrors = tmpGitErrors
-                }
-                val tmpGitPackingPhase = RegexUtil.parseReport(tmpLine)
-                if (tmpGitPackingPhase != null) {
-                    gitPackingPhase = tmpGitPackingPhase
-                }
-                if (errOuts.size > MAX_LOG_SIZE) {
-                    errOuts.clear()
-                }
-                errOuts.add(tmpLine)
             }
+        } else {
+            null
         }
         executor.streamHandler = PumpStreamHandler(outputStream, errorStream, inputStream)
         if (allowAllExitCodes) {
@@ -120,7 +126,7 @@ object CommandUtil {
         }
         val command = CommandLine.parse(executable).addArguments(args.toTypedArray(), false)
         if (printLogger) {
-            println("##[command]$ ${command.toStrings().joinToString(" ")}")
+            println("##[command]$ ${SensitiveLineParser.onParseLine(command.toStrings().joinToString(" "))}")
         }
         try {
             // 系统环境变量 + 运行时环境变量
@@ -158,6 +164,50 @@ object CommandUtil {
         } finally {
             reportGitPackingPhase(gitPackingPhase)
             IOUtils.close(errorStream, outputStream, inputStream)
+        }
+    }
+
+    fun execute(
+        command: String,
+        workingDirectory: File?,
+        printLogger: Boolean = false,
+        allowAllExitCodes: Boolean = false
+    ) {
+
+        val cmdLine = CommandLine.parse(command)
+        if (printLogger) {
+            println("##[command]$ ${SensitiveLineParser.onParseLine(cmdLine.toStrings().joinToString(" "))}")
+        }
+        val executor = CommandLineExecutor()
+        if (workingDirectory != null) {
+            executor.workingDirectory = workingDirectory
+        }
+
+        val outputStream = object : LogOutputStream() {
+            override fun processLine(line: String?, level: Int) {
+                if (line == null)
+                    return
+
+                val tmpLine = SensitiveLineParser.onParseLine(line)
+                if (printLogger) {
+                    println("  $tmpLine")
+                }
+            }
+        }
+        executor.streamHandler = PumpStreamHandler(outputStream, outputStream)
+        if (allowAllExitCodes) {
+            executor.setExitValues(null)
+        }
+        try {
+            executor.execute(cmdLine)
+        } catch (ignore: Throwable) {
+            throw GitExecuteException(
+                errorType = ErrorType.PLUGIN,
+                errorCode = GitConstants.DEFAULT_ERROR,
+                errorMsg = ignore.message ?: ""
+            )
+        } finally {
+            IOUtils.close(outputStream, outputStream)
         }
     }
 

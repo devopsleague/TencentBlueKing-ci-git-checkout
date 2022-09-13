@@ -159,7 +159,7 @@ class GitCheckoutRunner {
                     totalSize = EnvHelper.getContext(CONTEXT_TOTAL_SIZE)?.toDouble() ?: 0.0,
                     errorInfo = EnvHelper.getContext(CONTEXT_ERROR_INFO) ?: "",
                     authHelper = EnvHelper.getContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER) ?: "",
-                    osName = AgentEnv.getOS().name,
+                    osType = AgentEnv.getOS().name,
                     thirdParty = AgentEnv.isThirdParty()
                 )
             }

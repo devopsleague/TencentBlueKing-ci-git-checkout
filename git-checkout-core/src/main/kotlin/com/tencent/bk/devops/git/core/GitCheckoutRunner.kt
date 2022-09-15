@@ -41,6 +41,7 @@ import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_ERROR_IN
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_FETCH_COST_TIME
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_FETCH_STRATEGY
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_GIT_PROTOCOL
+import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_GIT_VERSION
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_INIT_COST_TIME
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_LFS_COST_TIME
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_LOG_COST_TIME
@@ -159,6 +160,7 @@ class GitCheckoutRunner {
                     totalSize = EnvHelper.getContext(CONTEXT_TOTAL_SIZE)?.toDouble() ?: 0.0,
                     errorInfo = EnvHelper.getContext(CONTEXT_ERROR_INFO) ?: "",
                     authHelper = EnvHelper.getContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER) ?: "",
+                    gitVersion = EnvHelper.getContext(CONTEXT_GIT_VERSION) ?: "",
                     osType = AgentEnv.getOS().name,
                     thirdParty = AgentEnv.isThirdParty()
                 )

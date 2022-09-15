@@ -27,6 +27,7 @@
 
 package com.tencent.bk.devops.git.core.service
 
+import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_GIT_VERSION
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.constant.GitConstants.GCM_INTERACTIVE
 import com.tencent.bk.devops.git.core.constant.GitConstants.GIT_LFS_FORCE_PROGRESS
@@ -47,6 +48,7 @@ import com.tencent.bk.devops.git.core.pojo.GitOutput
 import com.tencent.bk.devops.git.core.service.helper.RetryHelper
 import com.tencent.bk.devops.git.core.service.helper.VersionHelper
 import com.tencent.bk.devops.git.core.util.CommandUtil
+import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.RegexUtil
 import com.tencent.devops.git.log.LogType
 import org.slf4j.LoggerFactory
@@ -81,6 +83,7 @@ class GitCommandManager(
         gitVersion = VersionHelper.computeGitVersion(version)
         val buildId = System.getenv("BK_CI_BUILD_ID")
         setEnvironmentVariable(GitConstants.GIT_HTTP_USER_AGENT, "git/$gitVersion (devops-$buildId)")
+        EnvHelper.putContext(CONTEXT_GIT_VERSION, version)
         return version
     }
 

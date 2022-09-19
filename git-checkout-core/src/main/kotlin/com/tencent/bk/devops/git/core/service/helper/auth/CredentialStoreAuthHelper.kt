@@ -122,7 +122,7 @@ class CredentialStoreAuthHelper(
         super.configGlobalAuth(copyGlobalConfig)
         git.configAdd(
             configKey = GitConstants.GIT_CREDENTIAL_HELPER,
-            configValue = "store --file=${storeFile.absolutePath}",
+            configValue = "store --file='${storeFile.absolutePath}'",
             configScope = GitConfigScope.GLOBAL
         )
     }

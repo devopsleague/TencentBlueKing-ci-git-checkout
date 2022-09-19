@@ -86,7 +86,6 @@ class SshGitAuthHelper(
         val insteadOfHosts = getHostList()
         val insteadOfKey = "url.git@${serverInfo.hostName}:.insteadof"
         insteadOfHosts.forEach { host ->
-            unsetGitInsteadOfHttp(host = host)
             gitInsteadOfHttp(
                 host = host,
                 insteadOfKey = insteadOfKey
@@ -97,6 +96,7 @@ class SshGitAuthHelper(
     override fun unsetInsteadOf() {
         val insteadOfHosts = getHostList()
         insteadOfHosts.forEach { host ->
+            unsetGitInsteadOfHttp(host = host)
             unsetHttpInsteadOfGit(host = host)
         }
     }

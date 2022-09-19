@@ -30,7 +30,6 @@ package com.tencent.bk.devops.git.core.service.helper.auth
 import com.tencent.bk.devops.git.core.constant.ContextConstants
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.AuthHelperType
-import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
 import com.tencent.bk.devops.git.core.exception.ParamInvalidException
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
@@ -86,11 +85,8 @@ class SshGitAuthHelper(
     override fun insteadOf() {
         val insteadOfHosts = getHostList()
         val insteadOfKey = "url.git@${serverInfo.hostName}:.insteadof"
-        git.tryConfigUnset(
-            configKey = insteadOfKey,
-            configScope = GitConfigScope.GLOBAL
-        )
         insteadOfHosts.forEach { host ->
+            unsetGitInsteadOfHttp(host = host)
             gitInsteadOfHttp(
                 host = host,
                 insteadOfKey = insteadOfKey

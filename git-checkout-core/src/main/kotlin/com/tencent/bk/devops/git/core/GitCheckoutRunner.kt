@@ -28,6 +28,8 @@
 package com.tencent.bk.devops.git.core
 
 import com.tencent.bk.devops.atom.AtomContext
+import com.tencent.bk.devops.atom.api.Header
+import com.tencent.bk.devops.atom.api.SdkEnv
 import com.tencent.bk.devops.atom.common.Status
 import com.tencent.bk.devops.atom.pojo.AtomBaseParam
 import com.tencent.bk.devops.atom.pojo.MonitorData
@@ -162,7 +164,7 @@ class GitCheckoutRunner {
                     authHelper = EnvHelper.getContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER) ?: "",
                     gitVersion = EnvHelper.getContext(CONTEXT_GIT_VERSION) ?: "",
                     osType = AgentEnv.getOS().name,
-                    thirdParty = AgentEnv.isThirdParty()
+                    thirdParty = SdkEnv.getSdkHeader()[Header.AUTH_HEADER_DEVOPS_BUILD_TYPE] ?: ""
                 )
             }
             ServiceLoader.load(IGitMetricsHelper::class.java).firstOrNull()

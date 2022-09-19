@@ -33,5 +33,5 @@ data class GitMetricsInfo(
     val authHelper: String,
     val gitVersion: String,
     val osType: String,
-    val thirdParty: Boolean
+    val thirdParty: String?
 )

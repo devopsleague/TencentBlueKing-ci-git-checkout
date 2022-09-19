@@ -83,7 +83,7 @@ class GitCommandManager(
         gitVersion = VersionHelper.computeGitVersion(version)
         val buildId = System.getenv("BK_CI_BUILD_ID")
         setEnvironmentVariable(GitConstants.GIT_HTTP_USER_AGENT, "git/$gitVersion (devops-$buildId)")
-        EnvHelper.putContext(CONTEXT_GIT_VERSION, version)
+        EnvHelper.putContext(CONTEXT_GIT_VERSION, "$gitVersion")
         return version
     }
 

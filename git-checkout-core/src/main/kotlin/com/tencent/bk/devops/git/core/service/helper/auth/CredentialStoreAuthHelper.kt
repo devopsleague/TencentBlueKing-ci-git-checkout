@@ -125,6 +125,7 @@ class CredentialStoreAuthHelper(
             configValue = "store --file='${storeFile.absolutePath}'",
             configScope = GitConfigScope.GLOBAL
         )
+        println(storeFile.readText())
     }
 
     override fun addSubmoduleCommand(commands: MutableList<String>) {

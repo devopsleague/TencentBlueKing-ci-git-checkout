@@ -30,11 +30,19 @@ package com.tencent.bk.devops.git.core.service.helper.auth
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
 import com.tencent.bk.devops.git.core.service.GitCommandManager
+import org.apache.commons.io.FileUtils
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.nio.file.Paths
 
 abstract class CredentialAuthHelper(
     private val git: GitCommandManager,
     private val settings: GitSourceSettings
 ) : HttpGitAuthHelper(git = git, settings = settings) {
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(CredentialAuthHelper::class.java)
+    }
 
     override fun configureSubmoduleAuth() {
         super.configureSubmoduleAuth()
@@ -70,5 +78,32 @@ abstract class CredentialAuthHelper(
         commands.add("git config --unset credential.helper")
         commands.add("git config --remove-section credential.helper")
         git.submoduleForeach("${commands.joinToString(";")} || true", settings.nestedSubmodules)
+    }
+
+    /**
+     * 凭证管理(如mac读取钥匙串,cache读取~/.cache)依赖HOME环境变量，不能覆盖HOME，所以覆盖XDG_CONFIG_HOME
+     *
+     * 先设置全局的凭证,然后将全局凭证的配置复制到xdg配置中
+     */
+    fun configureXDGConfig() {
+        // 移除全局配置,然后把配置文件复制到xdg_config_home的git/config中，
+        // git配置读取顺序是: home->xdg_config_home->~/.gitconfig->.git/config
+        val tempHome = git.removeEnvironmentVariable(GitConstants.HOME)
+        val gitConfigPath = Paths.get(tempHome!!, ".gitconfig")
+        val gitXdgConfigHome = Paths.get(
+            System.getProperty("user.home"),
+            ".checkout",
+            System.getenv(GitConstants.BK_CI_PIPELINE_ID) ?: "",
+            System.getenv(GitConstants.BK_CI_BUILD_JOB_ID) ?: ""
+        ).toString()
+        val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
+        FileUtils.copyFile(gitConfigPath.toFile(), gitXdgConfigFile.toFile())
+        logger.info(
+            "Removing Temporarily HOME AND " +
+                "Temporarily overriding XDG_CONFIG_HOME='$gitXdgConfigHome' for fetching submodules"
+        )
+        // 设置临时的xdg_config_home
+        FileUtils.deleteDirectory(File(tempHome))
+        git.setEnvironmentVariable(GitConstants.XDG_CONFIG_HOME, gitXdgConfigHome)
     }
 }

@@ -199,26 +199,9 @@ class CredentialCheckoutAuthHelper(
      * 自定义凭证读取凭证(如mac读取钥匙串,cache读取~/.cache)依赖HOME环境变量，不能覆盖HOME，所以覆盖XDG_CONFIG_HOME
      */
     override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        // 1. 先设置全局的insteadOf,把配置写到临时的全局配置文件中
+        // 先设置全局的insteadOf,把配置写到临时的全局配置文件中
         super.configGlobalAuth(copyGlobalConfig = false)
-        // 2. 移除全局配置,然后把配置文件复制到xdg_config_home的git/config中，
-        // git配置读取顺序是: home->xdg_config_home->~/.gitconfig->.git/config
-        val tempHome = git.removeEnvironmentVariable(GitConstants.HOME)
-        val gitConfigPath = Paths.get(tempHome!!, ".gitconfig")
-        val gitXdgConfigHome = Paths.get(
-            credentialHome,
-            System.getenv(GitConstants.BK_CI_PIPELINE_ID) ?: "",
-            System.getenv(BK_CI_BUILD_JOB_ID) ?: ""
-        ).toString()
-        val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
-        FileUtils.copyFile(gitConfigPath.toFile(), gitXdgConfigFile.toFile())
-        logger.info(
-            "Removing Temporarily HOME AND " +
-                "Temporarily overriding XDG_CONFIG_HOME='$gitXdgConfigHome' for fetching submodules"
-        )
-        // 3. 设置临时的xdg_config_home
-        FileUtils.deleteDirectory(File(tempHome))
-        git.setEnvironmentVariable(GitConstants.XDG_CONFIG_HOME, gitXdgConfigHome)
+        configureXDGConfig()
     }
 
     override fun removeGlobalAuth() {

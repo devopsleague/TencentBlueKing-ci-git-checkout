@@ -118,13 +118,17 @@ class CredentialStoreAuthHelper(
         }
     }
 
+    /**
+     * 如果凭证获取成功,会调用凭证管理存储,如果覆盖HOME,会导致mac的osxkeychain凭证管理卡住,因为钥匙串存储在HOME目录，覆盖HOME后读取不到
+     */
     override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        super.configGlobalAuth(copyGlobalConfig)
+        super.configGlobalAuth(copyGlobalConfig = false)
         git.configAdd(
             configKey = GitConstants.GIT_CREDENTIAL_HELPER,
             configValue = "store --file='${storeFile.absolutePath}'",
             configScope = GitConfigScope.GLOBAL
         )
+        configureXDGConfig()
     }
 
     override fun addSubmoduleCommand(commands: MutableList<String>) {

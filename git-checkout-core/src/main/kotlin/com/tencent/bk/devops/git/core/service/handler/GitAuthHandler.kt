@@ -50,9 +50,7 @@ class GitAuthHandler(
         try {
             logger.groupStart("Setting up auth")
             authHelper.configureAuth()
-            if (settings.submodules) {
-                authHelper.configGlobalAuth()
-            }
+            authHelper.configGlobalAuth()
             logger.groupEnd("")
         } finally {
             EnvHelper.putContext(
@@ -65,9 +63,7 @@ class GitAuthHandler(
     override fun afterHandle() {
         logger.groupStart("removing auth")
         // 临时全局配置,执行完就清理
-        if (settings.submodules) {
-            authHelper.removeGlobalAuth()
-        }
+        authHelper.removeGlobalAuth()
         if (!settings.persistCredentials) {
             authHelper.removeAuth()
         }

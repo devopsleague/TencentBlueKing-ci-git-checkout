@@ -92,7 +92,7 @@ class CredentialCheckoutAuthHelper(
                 getHostList().toSet()
             } else {
                 val originHosts = credentialHosts.split(",").toMutableSet()
-                originHosts.add(serverInfo.hostName)
+                originHosts.addAll(getHostList())
                 originHosts
             }
             git.config(

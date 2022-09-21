@@ -294,7 +294,8 @@ class GitCommandManager(
         CommandUtil.execute(
             command = "git config ${configScope.arg} credential.helper ''",
             workingDirectory = workingDirectory,
-            printLogger = true
+            printLogger = true,
+            allowAllExitCodes = true
         )
     }
 

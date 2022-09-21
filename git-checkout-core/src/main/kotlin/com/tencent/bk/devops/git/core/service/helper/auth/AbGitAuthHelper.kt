@@ -53,31 +53,32 @@ abstract class AbGitAuthHelper(
     protected val authInfo = settings.authInfo
 
     override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        // 蓝盾默认镜像中有insteadOf,应该卸载,不然在凭证传递到下游插件时会导致凭证失效
         if (!AgentEnv.isThirdParty()) {
+            // 蓝盾默认镜像中有insteadOf,应该卸载,不然在凭证传递到下游插件时会导致凭证失效
             unsetInsteadOf()
-        }
-        val tempHomePath = Files.createTempDirectory("checkout")
-        val gitConfigPath = Paths.get(
-            System.getenv(HOME) ?: System.getProperty("user.home"),
-            ".gitconfig"
-        )
-        val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
-        if (copyGlobalConfig && Files.exists(gitConfigPath)) {
-            logger.info("Copying $gitConfigPath to $newGitConfigPath")
-            Files.copy(gitConfigPath, newGitConfigPath)
+            insteadOf()
         } else {
-            Files.createFile(newGitConfigPath)
-        }
-        logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
-        git.setEnvironmentVariable(HOME, tempHomePath.toString())
-        if (AgentEnv.isThirdParty()) {
+            val tempHomePath = Files.createTempDirectory("checkout")
+            val gitConfigPath = Paths.get(
+                System.getenv(HOME) ?: System.getProperty("user.home"),
+                ".gitconfig"
+            )
+            val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
+            if (copyGlobalConfig && Files.exists(gitConfigPath)) {
+                logger.info("Copying $gitConfigPath to $newGitConfigPath")
+                Files.copy(gitConfigPath, newGitConfigPath)
+            } else {
+                Files.createFile(newGitConfigPath)
+            }
+            logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
+            git.setEnvironmentVariable(HOME, tempHomePath.toString())
             unsetInsteadOf()
+            insteadOf()
         }
-        insteadOf()
     }
 
     override fun removeGlobalAuth() {
+        if (!AgentEnv.isThirdParty()) return
         val tempHome = git.removeEnvironmentVariable(HOME)
         if (!tempHome.isNullOrBlank()) {
             logger.info("Deleting Temporarily HOME='$tempHome'")

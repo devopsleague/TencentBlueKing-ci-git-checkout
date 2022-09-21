@@ -36,6 +36,7 @@ import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
 import com.tencent.bk.devops.git.core.pojo.CredentialArguments
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
 import com.tencent.bk.devops.git.core.service.GitCommandManager
+import com.tencent.bk.devops.git.core.util.AgentEnv
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.GitUtil
 import org.slf4j.LoggerFactory
@@ -122,13 +123,28 @@ class CredentialStoreAuthHelper(
      * 如果凭证获取成功,会调用凭证管理存储,如果覆盖HOME,会导致mac的osxkeychain凭证管理卡住,因为钥匙串存储在HOME目录，覆盖HOME后读取不到
      */
     override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        super.configGlobalAuth(copyGlobalConfig = false)
+        val tempHomePath = Files.createTempDirectory("checkout")
+        val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
+        Files.createFile(newGitConfigPath)
+        logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
+        git.setEnvironmentVariable(GitConstants.HOME, tempHomePath.toString())
+        insteadOf()
         git.configAdd(
             configKey = GitConstants.GIT_CREDENTIAL_HELPER,
             configValue = "store --file='${storeFile.absolutePath}'",
             configScope = GitConfigScope.GLOBAL
         )
         configureXDGConfig()
+    }
+
+    override fun removeGlobalAuth() {
+        if (!AgentEnv.isThirdParty()) return
+        val gitXdgConfigHome = git.removeEnvironmentVariable(GitConstants.XDG_CONFIG_HOME)
+        if (!gitXdgConfigHome.isNullOrBlank()) {
+            val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
+            logger.info("Deleting Temporarily XDG_CONFIG_HOME='$gitXdgConfigHome'")
+            Files.deleteIfExists(gitXdgConfigFile)
+        }
     }
 
     override fun addSubmoduleCommand(commands: MutableList<String>) {

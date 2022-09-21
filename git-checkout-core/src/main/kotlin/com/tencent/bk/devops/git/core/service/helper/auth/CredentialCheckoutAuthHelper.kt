@@ -43,6 +43,7 @@ import com.tencent.bk.devops.git.core.pojo.CredentialArguments
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.service.helper.VersionHelper
+import com.tencent.bk.devops.git.core.util.AgentEnv
 import com.tencent.bk.devops.git.core.util.CommandUtil
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import org.apache.commons.codec.digest.DigestUtils
@@ -199,12 +200,23 @@ class CredentialCheckoutAuthHelper(
      * 自定义凭证读取凭证(如mac读取钥匙串,cache读取~/.cache)依赖HOME环境变量，不能覆盖HOME，所以覆盖XDG_CONFIG_HOME
      */
     override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        // 先设置全局的insteadOf,把配置写到临时的全局配置文件中
-        super.configGlobalAuth(copyGlobalConfig = false)
-        configureXDGConfig()
+        if (!AgentEnv.isThirdParty()) {
+            // 蓝盾默认镜像中有insteadOf,应该卸载,不然在凭证传递到下游插件时会导致凭证失效
+            unsetInsteadOf()
+            insteadOf()
+        } else {
+            val tempHomePath = Files.createTempDirectory("checkout")
+            val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
+            Files.createFile(newGitConfigPath)
+            logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
+            git.setEnvironmentVariable(GitConstants.HOME, tempHomePath.toString())
+            insteadOf()
+            configureXDGConfig()
+        }
     }
 
     override fun removeGlobalAuth() {
+        if (!AgentEnv.isThirdParty()) return
         val gitXdgConfigHome = git.removeEnvironmentVariable(GitConstants.XDG_CONFIG_HOME)
         if (!gitXdgConfigHome.isNullOrBlank()) {
             val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")

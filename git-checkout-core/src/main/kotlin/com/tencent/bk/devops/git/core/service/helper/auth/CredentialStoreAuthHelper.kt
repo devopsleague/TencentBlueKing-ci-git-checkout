@@ -59,6 +59,9 @@ class CredentialStoreAuthHelper(
     private val storeFile = File.createTempFile("git_", "_credentials")
 
     override fun configureAuth() {
+        if (authInfo.username.isNullOrBlank() || authInfo.password.isNullOrBlank()) {
+            return
+        }
         logger.info("using store credential to set credentials ${authInfo.username}/******")
         EnvHelper.putContext(ContextConstants.CONTEXT_GIT_PROTOCOL, GitProtocolEnum.HTTP.name)
         git.config(

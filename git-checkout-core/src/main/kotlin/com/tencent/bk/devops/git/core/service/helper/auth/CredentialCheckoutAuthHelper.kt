@@ -81,13 +81,23 @@ class CredentialCheckoutAuthHelper(
     private val credentialShellPath = File(credentialHome, credentialShellFileName).absolutePath
 
     override fun configureAuth() {
+        if (authInfo.username.isNullOrBlank() || authInfo.password.isNullOrBlank()) {
+            return
+        }
         logger.info("using custom credential helper to set credentials ${authInfo.username}/******")
         EnvHelper.putContext(ContextConstants.CONTEXT_GIT_PROTOCOL, GitProtocolEnum.HTTP.name)
         val credentialHosts = git.tryConfigGet(configKey = GIT_CREDENTIAL_COMPATIBLEHOST)
         if (credentialHosts.isBlank() || !credentialHosts.split(",").contains(serverInfo.hostName)) {
+            val hosts = if (credentialHosts.isBlank()) {
+                getHostList().toSet()
+            } else {
+                val originHosts = credentialHosts.split(",").toMutableSet()
+                originHosts.add(serverInfo.hostName)
+                originHosts
+            }
             git.config(
                 configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
-                configValue = getHostList().joinToString(","),
+                configValue = hosts.joinToString(","),
                 configScope = GitConfigScope.GLOBAL
             )
         }

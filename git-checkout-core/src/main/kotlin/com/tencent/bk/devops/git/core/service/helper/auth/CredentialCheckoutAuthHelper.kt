@@ -83,7 +83,8 @@ class CredentialCheckoutAuthHelper(
     override fun configureAuth() {
         logger.info("using custom credential helper to set credentials ${authInfo.username}/******")
         EnvHelper.putContext(ContextConstants.CONTEXT_GIT_PROTOCOL, GitProtocolEnum.HTTP.name)
-        if (!git.configExists(configKey = GIT_CREDENTIAL_COMPATIBLEHOST)) {
+        val credentialHosts = git.tryConfigGet(configKey = GIT_CREDENTIAL_COMPATIBLEHOST)
+        if (credentialHosts.isBlank() || !credentialHosts.split(",").contains(serverInfo.hostName)) {
             git.config(
                 configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
                 configValue = getHostList().joinToString(","),

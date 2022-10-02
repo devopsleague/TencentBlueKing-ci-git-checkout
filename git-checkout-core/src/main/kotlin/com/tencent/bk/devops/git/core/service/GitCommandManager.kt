@@ -41,6 +41,7 @@ import com.tencent.bk.devops.git.core.constant.GitConstants.SUPPORT_SUBMODULE_SY
 import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.FilterValueEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
+import com.tencent.bk.devops.git.core.enums.GitErrors
 import com.tencent.bk.devops.git.core.exception.GitExecuteException
 import com.tencent.bk.devops.git.core.exception.RetryException
 import com.tencent.bk.devops.git.core.pojo.CommitLogInfo
@@ -395,7 +396,7 @@ class GitCommandManager(
             try {
                 execGit(args = args, logType = LogType.PROGRESS)
             } catch (e: GitExecuteException) {
-                if (e.errorCode == GitConstants.GIT_ERROR) {
+                if (e.errorCode == GitErrors.RemoteServerFailed.errorCode) {
                     gitEnv[GIT_TRACE] = "1"
                     throw RetryException(errorType = e.errorType, errorCode = e.errorCode, errorMsg = e.message!!)
                 } else {
@@ -528,7 +529,7 @@ class GitCommandManager(
             runtimeEnv = gitEnv,
             inputStream = inputStream,
             allowAllExitCodes = true,
-            printLogger = false,
+            printLogger = true,
             // git 低版本的credential-cache错误流没有关闭,导致程序会挂起,需要不捕获错误流
             handleErrStream = false
         )

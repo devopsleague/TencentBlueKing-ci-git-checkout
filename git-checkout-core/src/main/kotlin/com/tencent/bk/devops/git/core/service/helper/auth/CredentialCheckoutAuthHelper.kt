@@ -58,6 +58,8 @@ import java.nio.file.Paths
  * 使用自定义git-checkout-credential凭证
  *
  * 用于第三方构建机或公共构建机没有配置全局凭证的
+ * 1. checkout->checkout(不同的域名，不持久化凭证)->bash 报错
+2. mac: checkout->checkout(相同域名，不持久化凭证) -> bash 报错，这个是因为原来构建机会缓存凭证，然后这次被移除了，
  */
 @Suppress("ALL")
 class CredentialCheckoutAuthHelper(

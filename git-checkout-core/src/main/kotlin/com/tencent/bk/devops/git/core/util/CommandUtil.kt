@@ -31,6 +31,7 @@ import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_TOTAL_SI
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_TRANSFER_RATE
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.GitErrors
+import com.tencent.bk.devops.git.core.enums.OSType
 import com.tencent.bk.devops.git.core.exception.GitExecuteException
 import com.tencent.bk.devops.git.core.pojo.GitOutput
 import com.tencent.bk.devops.git.core.pojo.GitPackingPhase
@@ -179,7 +180,11 @@ object CommandUtil {
         if (printLogger) {
             logger.debug("##[command]$ ${command.replace("\n", "&&")}")
         }
-        val file = Files.createTempFile("devops_script", ".sh").toFile()
+        val file = if (AgentEnv.getOS() == OSType.WINDOWS) {
+            Files.createTempFile("devops_script", ".bat").toFile()
+        } else {
+            Files.createTempFile("devops_script", ".sh").toFile()
+        }
         file.setExecutable(true)
         file.deleteOnExit()
         file.writeText(command)

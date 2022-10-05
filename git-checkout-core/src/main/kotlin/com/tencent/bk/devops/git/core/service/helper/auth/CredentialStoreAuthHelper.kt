@@ -98,7 +98,7 @@ class CredentialStoreAuthHelper(
         commands: MutableList<String>
     ) {
         if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
-            commands.add("git config --add credential.helper '' ")
+            commands.add("git config --add credential.helper \"\" ")
         }
         commands.add("git config --add credential.helper 'store --file=${storeFile.absolutePath}'")
     }

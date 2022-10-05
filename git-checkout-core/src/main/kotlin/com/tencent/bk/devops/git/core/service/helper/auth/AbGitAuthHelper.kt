@@ -232,7 +232,7 @@ abstract class AbGitAuthHelper(
      *
      * 先设置全局的凭证,然后将全局凭证的配置复制到xdg配置中
      */
-    fun configureXDGConfig() {
+    private fun configureXDGConfig() {
         // 移除全局配置,然后把配置文件复制到xdg_config_home的git/config中，
         // git配置读取顺序是: home->xdg_config_home->~/.gitconfig->.git/config
         val tempHome = git.removeEnvironmentVariable(GitConstants.HOME)
@@ -244,7 +244,7 @@ abstract class AbGitAuthHelper(
             System.getenv(GitConstants.BK_CI_BUILD_JOB_ID) ?: ""
         ).toString()
         val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
-        Files.copy(gitConfigPath, gitXdgConfigFile)
+        org.apache.commons.io.FileUtils.copyFile(gitConfigPath.toFile(), gitXdgConfigFile.toFile())
         logger.info(
             "Removing Temporarily HOME AND " +
                 "Temporarily overriding XDG_CONFIG_HOME='$gitXdgConfigHome' for fetching submodules"

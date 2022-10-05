@@ -177,7 +177,7 @@ object CommandUtil {
         allowAllExitCodes: Boolean = false
     ) {
         if (printLogger) {
-            logger.debug(command)
+            logger.debug("##[command]$ ${command.replace("\n", "&&")}")
         }
         val file = Files.createTempFile("devops_script", ".sh").toFile()
         file.setExecutable(true)

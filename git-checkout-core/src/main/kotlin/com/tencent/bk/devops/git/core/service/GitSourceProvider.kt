@@ -103,7 +103,9 @@ class GitSourceProvider(
             if (settings.submodules && settings.persistCredentials) {
                 authHelper.removeSubmoduleAuth()
             }
-            authHelper.removeAuth()
+            if (settings.persistCredentials) {
+                authHelper.removeAuth()
+            }
         }
     }
 }

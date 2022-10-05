@@ -118,7 +118,13 @@ class Program(
 
     private fun get() {
         with(readInput()) {
-            var credential = credentialStore.get(targetUri)
+            var credential: Credential? = null
+            if (!taskId.isNullOrBlank()) {
+                credential = credentialStore.get(getTaskUri(targetUri))
+            }
+            if (credential == null) {
+                credential = credentialStore.get(targetUri)
+            }
             if (credential == null) {
                 credential = Credential.Empty
             }

@@ -33,6 +33,7 @@ import com.tencent.bk.devops.git.core.enums.AuthHelperType
 import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
 import com.tencent.bk.devops.git.core.exception.ParamInvalidException
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.SSHAgentUtils
@@ -57,31 +58,6 @@ class SshGitAuthHelper(
 
     override fun removeAuth() = Unit
 
-    override fun configureSubmoduleAuth() {
-        val insteadOfHosts = getHostList()
-        // 卸载上一步可能没有清理干净的insteadOf
-        // windows 执行一条git submodule foreach都需要很久时间,将insteadOf组装在一起节省执行时间
-        val commands = mutableListOf<String>()
-        val insteadOfKey = "url.git@${serverInfo.hostName}:.insteadof"
-        commands.add("git config --unset-all $insteadOfKey")
-        insteadOfHosts.forEach { host ->
-            listOf("http", "https").forEach { protocol ->
-                commands.add(" git config --add $insteadOfKey $protocol://$host/ ")
-            }
-        }
-        git.submoduleForeach("${commands.joinToString(";")} || true", settings.nestedSubmodules)
-    }
-
-    override fun removeSubmoduleAuth() {
-        val insteadOfKey = "url.git@${serverInfo.hostName}:.insteadof"
-        // git低版本卸载insteadOf后,但是url.*并没有卸载,需要指定再卸载
-        git.submoduleForeach(
-            " git config --unset-all $insteadOfKey; " +
-                "git config --remove-section url.git@${serverInfo.hostName}: || true",
-            settings.nestedSubmodules
-        )
-    }
-
     override fun insteadOf() {
         val insteadOfHosts = getHostList()
         val insteadOfKey = "url.git@${serverInfo.hostName}:.insteadof"
@@ -99,5 +75,25 @@ class SshGitAuthHelper(
             unsetGitInsteadOfHttp(host = host)
             unsetHttpInsteadOfGit(host = host)
         }
+    }
+
+    override fun submoduleInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        val insteadOfKey = "url.${serverInfo.origin}:.insteadOf"
+        // 卸载上一步可能没有清理的配置
+        commands.add("git config --unset-all $insteadOfKey")
+        if (moduleServerInfo.httpProtocol != serverInfo.httpProtocol) {
+            commands.add("git config $insteadOfKey ${moduleServerInfo.origin}/")
+        }
+    }
+
+    override fun submoduleUnsetInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        val insteadOfKey = "url.${serverInfo.origin}:.insteadOf"
+        commands.add("git config --unset-all $insteadOfKey")
     }
 }

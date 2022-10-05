@@ -25,27 +25,25 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package com.tencent.bk.devops.git.core.service.helper
+package com.tencent.bk.devops.git.core.util
 
 import com.tencent.bk.devops.git.core.pojo.GitSubmodule
-import com.tencent.bk.devops.git.core.util.CommandUtil
 import java.io.File
 import java.util.regex.Pattern
 
-class GitSubmoduleHelper {
+object SubmoduleUtil {
 
-    companion object {
-        private const val SUBMODULE_REMOTE_PATTERN_CONFIG_KEY = "^submodule\\.(.+)\\.url"
-        private const val SUBMODULE_REMOTE_PATTERN_STRING = SUBMODULE_REMOTE_PATTERN_CONFIG_KEY + "\\s+[^\\s]+$"
-        private val submodulePattern = Pattern.compile(SUBMODULE_REMOTE_PATTERN_STRING)
-    }
+    private const val SUBMODULE_REMOTE_PATTERN_CONFIG_KEY = "^submodule\\.(.+)\\.url"
+    private const val SUBMODULE_REMOTE_PATTERN_STRING = SUBMODULE_REMOTE_PATTERN_CONFIG_KEY + "\\s+[^\\s]+$"
+    private val submodulePattern = Pattern.compile(SUBMODULE_REMOTE_PATTERN_STRING)
 
     fun getSubmodules(repositoryDir: File, recursive: Boolean): List<GitSubmodule> {
         val submoduleCfg = CommandUtil.execute(
             workingDirectory = repositoryDir,
             executable = "git",
-            args = listOf("config", "-f", ".gitmodules", "--get-regexp", SUBMODULE_REMOTE_PATTERN_CONFIG_KEY),
-            allowAllExitCodes = true
+            args = listOf("config", "--get-regexp", SUBMODULE_REMOTE_PATTERN_CONFIG_KEY),
+            allowAllExitCodes = true,
+            printLogger = false
         ).stdOuts
 
         val submodules = mutableListOf<GitSubmodule>()
@@ -58,7 +56,7 @@ class GitSubmoduleHelper {
                     GitSubmodule(
                         name = submoduleName,
                         path = path,
-                        relativePath = File(repositoryDir, path).path,
+                        absolutePath = File(repositoryDir, path).path,
                         url = getSubmoduleUrl(repositoryDir = repositoryDir, name = submoduleName)
                     )
                 )
@@ -75,7 +73,8 @@ class GitSubmoduleHelper {
             workingDirectory = repositoryDir,
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.path"),
-            allowAllExitCodes = true
+            allowAllExitCodes = true,
+            printLogger = false
         ).stdOut
     }
 
@@ -84,7 +83,21 @@ class GitSubmoduleHelper {
             workingDirectory = repositoryDir,
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.url"),
-            allowAllExitCodes = true
+            allowAllExitCodes = true,
+            printLogger = false
         ).stdOut
+    }
+
+    fun submoduleForeach(
+        repositoryDir: File,
+        recursive: Boolean,
+        action: (GitSubmodule) -> Unit
+    ) {
+        getSubmodules(
+            repositoryDir = repositoryDir,
+            recursive = recursive
+        ).forEach { submodule ->
+            action.invoke(submodule)
+        }
     }
 }

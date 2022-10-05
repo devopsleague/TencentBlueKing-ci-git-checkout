@@ -42,9 +42,8 @@ interface IGitAuthHelper {
     /**
      * 配置全局凭证，用于拉取子模块时使用
      *
-     * @param copyGlobalConfig 是否复制全局变量
      */
-    fun configGlobalAuth(copyGlobalConfig: Boolean = true)
+    fun configGlobalAuth()
 
     /**
      * 移除全局凭证

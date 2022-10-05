@@ -25,29 +25,39 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package com.tencent.bk.devops.git.core.util
+package com.tencent.bk.devops.git.credential.helper
 
-import org.junit.Assert
-import org.junit.Test
+import com.tencent.bk.devops.git.credential.Constants.BK_CI_BUILD_ID
+import com.tencent.bk.devops.git.credential.Constants.BK_CI_BUILD_JOB_ID
+import com.tencent.bk.devops.git.credential.Constants.BK_CI_PIPELINE_ID
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Paths
 
-class AESUtilTest {
+object LockHelper {
 
-    // AES secretKey length (must be 16 bytes)
-    private val secretKey = "TAZWSXEDCRFVTGBG"
-
-    @Test
-    fun encrypt() {
-        Assert.assertEquals(AESUtil.encrypt(secretKey, "1234"), "C+8Fpua5fwl3sLZ3uqXg/A==")
+    fun lock() {
+        getLockFile().writeText(System.getenv(BK_CI_BUILD_ID) ?: "")
     }
 
-    @Test
-    fun decrypt() {
-        Assert.assertEquals(AESUtil.decrypt(secretKey, "C+8Fpua5fwl3sLZ3uqXg/A=="), "1234")
+    fun unlock(): Boolean {
+        val lockFile = getLockFile()
+        if (!lockFile.exists()) {
+            return true
+        }
+        return lockFile.readText() == (System.getenv(BK_CI_BUILD_ID) ?: "")
     }
 
-    @Test
-    fun test() {
-        println(File("?", ".checkout").absolutePath)
+    private fun getLockFile(): File {
+        val lockPath = Paths.get(
+            System.getProperty("user.home"),
+            ".checkout",
+            System.getenv(BK_CI_PIPELINE_ID),
+            System.getenv(BK_CI_BUILD_JOB_ID)
+        )
+        if (!Files.exists(lockPath)) {
+            Files.createDirectories(lockPath)
+        }
+        return File(lockPath.toString(), "credential.lock")
     }
 }

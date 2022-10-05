@@ -31,9 +31,14 @@ import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.pojo.CredentialArguments
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import org.slf4j.LoggerFactory
+import java.net.URI
 
+/**
+ * http或https协议的授权管理
+ */
 abstract class HttpGitAuthHelper(
     private val git: GitCommandManager,
     private val settings: GitSourceSettings
@@ -42,29 +47,6 @@ abstract class HttpGitAuthHelper(
     companion object {
         private const val OAUTH2 = "oauth2"
         private val logger = LoggerFactory.getLogger(HttpGitAuthHelper::class.java)
-    }
-
-    override fun configureSubmoduleAuth() {
-        val insteadOfHosts = getHostList()
-        val commands = mutableListOf<String>()
-        // 卸载上一步可能没有清理干净的insteadOf
-        // windows 执行一条git submodule foreach都需要很久时间,将insteadOf组装在一起节省执行时间
-        val insteadOfKey = "url.${serverInfo.origin}/.insteadOf"
-        commands.add("git config --unset-all $insteadOfKey")
-        insteadOfHosts.forEach { host ->
-            commands.add("git config --add $insteadOfKey git@$host: ")
-        }
-        git.submoduleForeach("${commands.joinToString(";")} || true", settings.nestedSubmodules)
-    }
-
-    override fun removeSubmoduleAuth() {
-        val insteadOfKey = "url.${serverInfo.origin}/.insteadOf"
-        // git低版本卸载insteadOf后,但是url.*并没有卸载,需要指定再卸载
-        git.submoduleForeach(
-            " git config --unset-all $insteadOfKey; " +
-                "git config --remove-section url.${serverInfo.origin}/ || true",
-            settings.nestedSubmodules
-        )
     }
 
     override fun insteadOf() {
@@ -87,6 +69,36 @@ abstract class HttpGitAuthHelper(
         insteadOfHosts.forEach { host ->
             unsetGitInsteadOfHttp(host = host)
         }
+    }
+
+    override fun submoduleInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        val insteadOfKey = "url.${serverInfo.origin}/.insteadOf"
+        val insteadOfValue = if (moduleServerInfo.httpProtocol == serverInfo.httpProtocol) {
+            "${moduleServerInfo.origin}/"
+        } else {
+            "${moduleServerInfo.origin}:"
+        }
+        // 卸载上一步可能没有清理的配置
+        commands.add("git config --unset-all $insteadOfKey")
+        commands.add("git config $insteadOfKey $insteadOfValue")
+    }
+
+    override fun submoduleUnsetInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        val insteadOfKey = "url.${serverInfo.origin}/.insteadOf"
+        commands.add("git config --unset-all $insteadOfKey")
+    }
+
+    override fun removeSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        commands.add("git config --unset-all credential.helper")
     }
 
     // 工蜂如果oauth2方式授权，如果token有效但是没有仓库的权限,返回状态码是200，但是会抛出repository not found异常,
@@ -112,9 +124,47 @@ abstract class HttpGitAuthHelper(
         }
     }
 
+    /**
+     * 存储全局凭证,保证凭证能够向下游插件传递,兼容http和https
+     *
+     * 1. 调用全局凭证管理,将用户名密码保存到凭证管理中使凭证能够向下游插件传递,同时覆盖构建机上错误的凭证
+     * 2. 保存全局凭证必须在禁用凭证之前,否则调用全局凭证无用
+     * 3. 保存的全局凭证在下游插件可能不生效，因为在同一个私有构建机，
+     *    如果同时执行多条流水线,每条流水线拉代码的账号oauth不同就可能被覆盖
+     *
+     *  @param writeCompatibleHost 兼容host是否写入
+     */
+    fun storeGlobalCredential(writeCompatibleHost: Boolean) {
+        logger.info("store and overriding global credential for other plugins")
+        println("##[command]$ git credential approve")
+        val targetUri = URI(settings.repositoryUrl)
+        git.credential(
+            action = CredentialActionEnum.APPROVE,
+            inputStream = CredentialArguments(
+                protocol = targetUri.scheme,
+                host = targetUri.host,
+                username = authInfo.username,
+                password = authInfo.password
+            ).convertInputStream()
+        )
+        if (writeCompatibleHost) {
+            // 同一服务多个域名时，需要保存不同域名的凭证
+            combinableHost { protocol, host ->
+                git.credential(
+                    action = CredentialActionEnum.APPROVE,
+                    inputStream = CredentialArguments(
+                        protocol = protocol,
+                        host = host,
+                        username = authInfo.username,
+                        password = authInfo.password
+                    ).convertInputStream()
+                )
+            }
+        }
+    }
+
     fun combinableHost(action: (protocol: String, host: String) -> Unit) {
-        val credentialHosts = getHostList()
-        credentialHosts.forEach { host ->
+        getHostList().forEach { host ->
             listOf("https", "http").forEach { protocol ->
                 action.invoke(protocol, host)
             }

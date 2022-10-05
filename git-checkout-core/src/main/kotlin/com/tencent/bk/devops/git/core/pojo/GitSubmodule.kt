@@ -30,8 +30,8 @@ package com.tencent.bk.devops.git.core.pojo
 data class GitSubmodule(
     val name: String,
     val path: String,
-    // 相对于主库路径
-    val relativePath: String,
+    // 绝对路径
+    val absolutePath: String,
     val url: String,
     val revision: String? = null,
     val branch: String? = null

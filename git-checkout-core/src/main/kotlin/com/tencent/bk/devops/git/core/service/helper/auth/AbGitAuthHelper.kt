@@ -27,19 +27,23 @@
 
 package com.tencent.bk.devops.git.core.service.helper.auth
 
-import com.tencent.bk.devops.git.core.constant.GitConstants.HOME
+import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.service.helper.IGitAuthHelper
 import com.tencent.bk.devops.git.core.util.AgentEnv
+import com.tencent.bk.devops.git.core.util.CommandUtil
 import com.tencent.bk.devops.git.core.util.FileUtils
 import com.tencent.bk.devops.git.core.util.GitUtil
+import com.tencent.bk.devops.git.core.util.SubmoduleUtil
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
 
+@SuppressWarnings("TooManyFunctions")
 abstract class AbGitAuthHelper(
     private val git: GitCommandManager,
     private val settings: GitSourceSettings
@@ -52,46 +56,132 @@ abstract class AbGitAuthHelper(
     protected val serverInfo = GitUtil.getServerInfo(settings.repositoryUrl)
     protected val authInfo = settings.authInfo
 
-    override fun configGlobalAuth(copyGlobalConfig: Boolean) {
+    override fun configGlobalAuth() {
         if (!AgentEnv.isThirdParty()) {
             // 蓝盾默认镜像中有insteadOf,应该卸载,不然在凭证传递到下游插件时会导致凭证失效
             unsetInsteadOf()
             insteadOf()
+            configGlobalAuthCommand()
         } else {
+            /**
+             * 第三方构建机,为了不污染第三方构建机用户git环境,采用临时覆盖HOME环境变量,然后再执行insteadOf命令
+             */
             val tempHomePath = Files.createTempDirectory("checkout")
-            val gitConfigPath = Paths.get(
-                System.getenv(HOME) ?: System.getProperty("user.home"),
-                ".gitconfig"
-            )
             val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
-            if (copyGlobalConfig && Files.exists(gitConfigPath)) {
-                logger.info("Copying $gitConfigPath to $newGitConfigPath")
-                Files.copy(gitConfigPath, newGitConfigPath)
-            } else {
-                Files.createFile(newGitConfigPath)
-            }
+            Files.createFile(newGitConfigPath)
             logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
-            git.setEnvironmentVariable(HOME, tempHomePath.toString())
-            unsetInsteadOf()
+            git.setEnvironmentVariable(GitConstants.HOME, tempHomePath.toString())
             insteadOf()
+            configGlobalAuthCommand()
+            configureXDGConfig()
         }
     }
 
     override fun removeGlobalAuth() {
         if (!AgentEnv.isThirdParty()) return
-        val tempHome = git.removeEnvironmentVariable(HOME)
-        if (!tempHome.isNullOrBlank()) {
-            logger.info("Deleting Temporarily HOME='$tempHome'")
-            FileUtils.deleteDirectory(File(tempHome))
+        val gitXdgConfigHome = git.removeEnvironmentVariable(GitConstants.XDG_CONFIG_HOME)
+        if (!gitXdgConfigHome.isNullOrBlank()) {
+            val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
+            logger.info("Deleting Temporarily XDG_CONFIG_HOME='$gitXdgConfigHome'")
+            Files.deleteIfExists(gitXdgConfigFile)
         }
     }
 
+    override fun configureSubmoduleAuth() {
+        SubmoduleUtil.submoduleForeach(
+            repositoryDir = File(settings.repositoryPath),
+            recursive = settings.nestedSubmodules
+        ) { submodule ->
+            val moduleServerInfo = GitUtil.getServerInfo(submodule.url)
+            // 如果是相同的git服务端,但是域名不同,则执行insteadOf命令
+            if (getHostList().contains(moduleServerInfo.hostName)) {
+                logger.info("enter submodule name:${submodule.name},path:${submodule.path},url:${submodule.url}")
+                val commands = mutableListOf<String>()
+                configSubmoduleAuthCommand(moduleServerInfo, commands)
+                // 如果schema://HOSTNAME不相同,则统一转换成主库的协议拉取
+                if (moduleServerInfo.origin != serverInfo.origin) {
+                    submoduleInsteadOf(moduleServerInfo, commands)
+                }
+                CommandUtil.execute(
+                    command = commands.joinToString("\n"),
+                    workingDirectory = File(submodule.absolutePath),
+                    printLogger = true,
+                    allowAllExitCodes = true
+                )
+            }
+        }
+    }
+
+    override fun removeSubmoduleAuth() {
+        SubmoduleUtil.getSubmodules(
+            repositoryDir = File(settings.repositoryPath),
+            recursive = settings.nestedSubmodules
+        ).forEach { submodule ->
+            val moduleServerInfo = GitUtil.getServerInfo(submodule.url)
+            // 如果是相同的git服务端,但是域名不同,则执行unset insteadOf命令
+            if (getHostList().contains(moduleServerInfo.hostName)) {
+                logger.info("enter submodule name:${submodule.name},path:${submodule.path},url:${submodule.url}")
+                val commands = mutableListOf<String>()
+                removeSubmoduleAuthCommand(moduleServerInfo, commands)
+                if (moduleServerInfo.origin != serverInfo.origin) {
+                    submoduleUnsetInsteadOf(moduleServerInfo, commands)
+                }
+                CommandUtil.execute(
+                    command = commands.joinToString("\n"),
+                    workingDirectory = File(submodule.absolutePath),
+                    printLogger = true,
+                    allowAllExitCodes = true
+                )
+            }
+        }
+    }
+
+    /**
+     * 配置全局的insteadOf
+     */
     abstract fun insteadOf()
 
     /**
-     * 删除全局的insteadOf
+     * 卸载全局的insteadOf
      */
     abstract fun unsetInsteadOf()
+
+    /**
+     * 配置子模块insteadOf
+     */
+    abstract fun submoduleInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    )
+
+    /**
+     * 卸载子模块insteadOf
+     */
+    abstract fun submoduleUnsetInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    )
+
+    /**
+     * 子类添加全局配置 expand
+     */
+    open fun configGlobalAuthCommand() = Unit
+
+    /**
+     * 子类配置授权时submodule操作命令
+     */
+    open fun configSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) = Unit
+
+    /**
+     * 子类移除授权时submodule操作命令
+     */
+    open fun removeSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) = Unit
 
     protected fun getHostList(): MutableSet<String> {
         val insteadOfHosts = mutableSetOf(serverInfo.hostName)
@@ -135,5 +225,32 @@ abstract class AbGitAuthHelper(
                 configScope = GitConfigScope.GLOBAL
             )
         }
+    }
+
+    /**
+     * 凭证管理(如mac读取钥匙串,cache读取~/.cache)依赖HOME环境变量，不能覆盖HOME，所以覆盖XDG_CONFIG_HOME
+     *
+     * 先设置全局的凭证,然后将全局凭证的配置复制到xdg配置中
+     */
+    fun configureXDGConfig() {
+        // 移除全局配置,然后把配置文件复制到xdg_config_home的git/config中，
+        // git配置读取顺序是: home->xdg_config_home->~/.gitconfig->.git/config
+        val tempHome = git.removeEnvironmentVariable(GitConstants.HOME)
+        val gitConfigPath = Paths.get(tempHome!!, ".gitconfig")
+        val gitXdgConfigHome = Paths.get(
+            System.getProperty("user.home"),
+            ".checkout",
+            System.getenv(GitConstants.BK_CI_PIPELINE_ID) ?: "",
+            System.getenv(GitConstants.BK_CI_BUILD_JOB_ID) ?: ""
+        ).toString()
+        val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
+        Files.copy(gitConfigPath, gitXdgConfigFile)
+        logger.info(
+            "Removing Temporarily HOME AND " +
+                "Temporarily overriding XDG_CONFIG_HOME='$gitXdgConfigHome' for fetching submodules"
+        )
+        // 设置临时的xdg_config_home
+        FileUtils.deleteDirectory(File(tempHome))
+        git.setEnvironmentVariable(GitConstants.XDG_CONFIG_HOME, gitXdgConfigHome)
     }
 }

@@ -80,7 +80,7 @@ class GitCommandManager(
     }
 
     fun getGitVersion(): String {
-        val version = execGit(listOf("--version")).stdOut
+        val version = execGit(args = listOf("--version")).stdOut
         gitVersion = VersionHelper.computeGitVersion(version)
         val buildId = System.getenv("BK_CI_BUILD_ID")
         setEnvironmentVariable(GitConstants.GIT_HTTP_USER_AGENT, "git/$gitVersion (devops-$buildId)")
@@ -396,7 +396,7 @@ class GitCommandManager(
             try {
                 execGit(args = args, logType = LogType.PROGRESS)
             } catch (e: GitExecuteException) {
-                if (e.errorCode == GitErrors.RemoteServerFailed.errorCode) {
+                if (isFetchRetry(errorCode = e.errorCode)) {
                     gitEnv[GIT_TRACE] = "1"
                     throw RetryException(errorType = e.errorType, errorCode = e.errorCode, errorMsg = e.message!!)
                 } else {
@@ -404,6 +404,14 @@ class GitCommandManager(
                 }
             }
         }
+    }
+
+    private fun isFetchRetry(errorCode: Int): Boolean {
+        return listOf(
+            GitErrors.RemoteServerFailed.errorCode,
+            GitErrors.AuthenticationFailed.errorCode,
+            GitErrors.RepositoryNotFoundFailed.errorCode
+        ).contains(errorCode)
     }
 
     fun lfsInstall() {

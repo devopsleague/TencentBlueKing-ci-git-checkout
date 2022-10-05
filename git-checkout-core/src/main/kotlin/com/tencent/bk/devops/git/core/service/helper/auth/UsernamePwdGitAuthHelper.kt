@@ -32,6 +32,7 @@ import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.AuthHelperType
 import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.GitUtil.urlEncode
@@ -99,44 +100,40 @@ class UsernamePwdGitAuthHelper(
         }
     }
 
-    override fun configureSubmoduleAuth() {
-        val insteadOfUrl = getInsteadofUrl()
-        val insteadOfHosts = getHostList()
-        val unsetInsteadOfCommand = "git config --unset-all $insteadOfUrl"
-        val gitInsteadOfCommand = insteadOfHosts.joinToString(";") { host ->
-            " git config --add $insteadOfUrl git@$host: "
+    /**
+     * 将所有子模块替换成与主库相同的http[\s]://username:password@/主库host
+     */
+    override fun configSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        val insteadOfKey = getInsteadofUrl()
+        val insteadOfValue = if (moduleServerInfo.httpProtocol == serverInfo.httpProtocol) {
+            "${moduleServerInfo.origin}/"
+        } else {
+            "${moduleServerInfo.origin}:"
         }
-        val httpInsteadOfCommandBuilder = StringBuilder()
-        insteadOfHosts.forEach { host ->
-            listOf("http", "https").forEach { protocol ->
-                httpInsteadOfCommandBuilder.append(" git config --add $insteadOfUrl $protocol://$host/ ").append(";")
-            }
-        }
-        // 卸载子模块时,不知道子模块的insteadOf配置key，先暂存卸载时直接获取
-        git.config(
-            configKey = INSTEADOF_URL_CONFIG,
-            configValue = insteadOfUrl
-        )
-        git.submoduleForeach(
-            command = "$unsetInsteadOfCommand;" +
-                "$gitInsteadOfCommand;" +
-                "${httpInsteadOfCommandBuilder.removeSuffix(";")} " +
-                "|| true",
-            recursive = settings.nestedSubmodules
-        )
+        // 卸载上一步可能没有清理的配置
+        commands.add("git config --unset-all $insteadOfKey")
+        commands.add("git config $insteadOfKey $insteadOfValue")
     }
 
-    override fun removeSubmoduleAuth() {
-        val insteadOfUrl = git.tryConfigGet(configKey = INSTEADOF_URL_CONFIG)
-        if (insteadOfUrl.isNotBlank()) {
-            git.tryConfigUnset(configKey = INSTEADOF_URL_CONFIG)
-            git.submoduleForeach(
-                command = "git config --unset-all $insteadOfUrl; " +
-                    "git config --remove-section ${insteadOfUrl.removeSuffix(".insteadOf")} || true",
-                recursive = settings.nestedSubmodules
-            )
-        }
+    override fun removeSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        commands.add("git config --unset-all ${getInsteadofUrl()}")
     }
+
+    override fun submoduleInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) = Unit
+
+    override fun submoduleUnsetInsteadOf(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) = Unit
 
     private fun getInsteadofUrl(): String {
         val uri = URI(settings.repositoryUrl)

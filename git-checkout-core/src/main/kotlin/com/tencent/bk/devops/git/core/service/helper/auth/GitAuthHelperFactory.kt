@@ -55,7 +55,7 @@ object GitAuthHelperFactory {
         gitAuthHelper = if (serverInfo.httpProtocol) {
             getHttpAuthHelper(git, settings)
         } else {
-            SshGitAuthHelper(git, settings)
+            getSshAuthHelper(git, settings)
         }
         return gitAuthHelper!!
     }
@@ -66,14 +66,25 @@ object GitAuthHelperFactory {
          * 2. 如果git版本支持了凭证管理，需要判断用户是否配置了全局凭证并且全局凭证不是git-checkout-credential产生的,
          *    使用ask pass方式获取用户名密码,不然如果用户在拉代码后使用git config --global credential.helper 会报错
          */
-        return if (git.isAtLeastVersion(GitConstants.SUPPORT_CRED_HELPER_GIT_VERSION)) {
-            if (isUseCustomCredential(git)) {
-                CredentialCheckoutAuthHelper(git, settings)
-            } else {
-                CredentialStoreAuthHelper(git, settings)
+        return when {
+            settings.authInfo.username.isNullOrBlank() || settings.authInfo.password.isNullOrBlank() ->
+                EmptyGitAuthHelper()
+            git.isAtLeastVersion(GitConstants.SUPPORT_CRED_HELPER_GIT_VERSION) -> {
+                if (isUseCustomCredential(git)) {
+                    CredentialCheckoutAuthHelper(git, settings)
+                } else {
+                    CredentialStoreAuthHelper(git, settings)
+                }
             }
+            else -> UsernamePwdGitAuthHelper(git, settings)
+        }
+    }
+
+    private fun getSshAuthHelper(git: GitCommandManager, settings: GitSourceSettings): IGitAuthHelper {
+        return if (settings.authInfo.privateKey.isNullOrBlank()) {
+            EmptyGitAuthHelper()
         } else {
-            UsernamePwdGitAuthHelper(git, settings)
+            SshGitAuthHelper(git, settings)
         }
     }
 
@@ -85,7 +96,7 @@ object GitAuthHelperFactory {
     private fun isUseCustomCredential(git: GitCommandManager): Boolean {
         // linux或mac构建机重启后,自启动agent可能导致HOME不存在
         if (AgentEnv.getOS() != OSType.WINDOWS && System.getenv(HOME) == null) {
-            logger.error("$HOME not set")
+            logger.warn("$HOME not set")
             return false
         }
         val credentialHelperConfig = git.tryConfigGetAll(
@@ -103,8 +114,6 @@ object GitAuthHelperFactory {
                 CredentialCheckoutAuthHelper(git, settings)
             AuthHelperType.STORE_CREDENTIAL.name ->
                 CredentialStoreAuthHelper(git, settings)
-            AuthHelperType.ASK_PASS.name ->
-                AskPassGitAuthHelper(git, settings)
             AuthHelperType.USERNAME_PASSWORD.name ->
                 UsernamePwdGitAuthHelper(git, settings)
             AuthHelperType.SSH.name ->

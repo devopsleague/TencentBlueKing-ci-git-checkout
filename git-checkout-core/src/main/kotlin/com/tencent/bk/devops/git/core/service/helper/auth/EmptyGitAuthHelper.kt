@@ -25,29 +25,23 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package com.tencent.bk.devops.git.core.util
+package com.tencent.bk.devops.git.core.service.helper.auth
 
-import org.junit.Assert
-import org.junit.Test
-import java.io.File
+import com.tencent.bk.devops.git.core.service.helper.IGitAuthHelper
 
-class AESUtilTest {
+/**
+ * 空的凭证管理
+ */
+class EmptyGitAuthHelper : IGitAuthHelper {
+    override fun configureAuth() = Unit
 
-    // AES secretKey length (must be 16 bytes)
-    private val secretKey = "TAZWSXEDCRFVTGBG"
+    override fun removeAuth() = Unit
 
-    @Test
-    fun encrypt() {
-        Assert.assertEquals(AESUtil.encrypt(secretKey, "1234"), "C+8Fpua5fwl3sLZ3uqXg/A==")
-    }
+    override fun configGlobalAuth() = Unit
 
-    @Test
-    fun decrypt() {
-        Assert.assertEquals(AESUtil.decrypt(secretKey, "C+8Fpua5fwl3sLZ3uqXg/A=="), "1234")
-    }
+    override fun removeGlobalAuth() = Unit
 
-    @Test
-    fun test() {
-        println(File("?", ".checkout").absolutePath)
-    }
+    override fun configureSubmoduleAuth() = Unit
+
+    override fun removeSubmoduleAuth() = Unit
 }

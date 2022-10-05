@@ -41,9 +41,9 @@ import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
 import com.tencent.bk.devops.git.core.pojo.CredentialArguments
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.service.helper.VersionHelper
-import com.tencent.bk.devops.git.core.util.AgentEnv
 import com.tencent.bk.devops.git.core.util.CommandUtil
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import org.apache.commons.codec.digest.DigestUtils
@@ -51,8 +51,6 @@ import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URL
-import java.nio.file.Files
-import java.nio.file.Paths
 
 /**
  * 使用自定义git-checkout-credential凭证
@@ -65,7 +63,7 @@ import java.nio.file.Paths
 class CredentialCheckoutAuthHelper(
     private val git: GitCommandManager,
     private val settings: GitSourceSettings
-) : CredentialAuthHelper(git = git, settings = settings) {
+) : HttpGitAuthHelper(git = git, settings = settings) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(CredentialCheckoutAuthHelper::class.java)
@@ -83,26 +81,9 @@ class CredentialCheckoutAuthHelper(
     private val credentialShellPath = File(credentialHome, credentialShellFileName).absolutePath
 
     override fun configureAuth() {
-        if (authInfo.username.isNullOrBlank() || authInfo.password.isNullOrBlank()) {
-            return
-        }
         logger.info("using custom credential helper to set credentials ${authInfo.username}/******")
         EnvHelper.putContext(ContextConstants.CONTEXT_GIT_PROTOCOL, GitProtocolEnum.HTTP.name)
-        val credentialHosts = git.tryConfigGet(configKey = GIT_CREDENTIAL_COMPATIBLEHOST)
-        if (credentialHosts.isBlank() || !credentialHosts.split(",").contains(serverInfo.hostName)) {
-            val hosts = if (credentialHosts.isBlank()) {
-                getHostList().toSet()
-            } else {
-                val originHosts = credentialHosts.split(",").toMutableSet()
-                originHosts.addAll(getHostList())
-                originHosts
-            }
-            git.config(
-                configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
-                configValue = hosts.joinToString(","),
-                configScope = GitConfigScope.GLOBAL
-            )
-        }
+        configCompatibleHost()
         val jobId = System.getenv(BK_CI_BUILD_JOB_ID)
         EnvHelper.addEnvVariable("${CREDENTIAL_JAVA_PATH}_$jobId", getJavaFilePath())
         EnvHelper.addEnvVariable("${CREDENTIAL_JAR_PATH}_$jobId", credentialJarFileName)
@@ -113,8 +94,10 @@ class CredentialCheckoutAuthHelper(
             configValue = AuthHelperType.CUSTOM_CREDENTIAL.name
         )
         EnvHelper.putContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER, AuthHelperType.CUSTOM_CREDENTIAL.name)
-        eraseOauth2Credential()
+
         git.tryConfigUnset(configKey = GIT_CREDENTIAL_HELPER)
+        eraseOauth2Credential()
+        storeGlobalCredential(writeCompatibleHost = false)
         if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
             git.tryDisableOtherGitHelpers(configScope = GitConfigScope.LOCAL)
         }
@@ -123,8 +106,27 @@ class CredentialCheckoutAuthHelper(
             configKey = GIT_CREDENTIAL_HELPER,
             configValue = "!bash '$credentialShellPath' ${settings.pipelineTaskId}"
         )
+
         install()
         store()
+    }
+
+    private fun configCompatibleHost() {
+        val compatibleHostList = settings.compatibleHostList
+        if (!compatibleHostList.isNullOrEmpty() && compatibleHostList.contains(serverInfo.hostName)) {
+            if (!git.configExists(
+                    configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
+                    configValueRegex = compatibleHostList.joinToString(","),
+                    configScope = GitConfigScope.GLOBAL
+                )
+            ) {
+                git.config(
+                    configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
+                    configValue = compatibleHostList.joinToString(","),
+                    configScope = GitConfigScope.GLOBAL
+                )
+            }
+        }
     }
 
     private fun install() {
@@ -209,35 +211,6 @@ class CredentialCheckoutAuthHelper(
 
     private fun getJavaFilePath() = File(System.getProperty("java.home"), "/bin/java").absolutePath
 
-    /**
-     * 自定义凭证读取凭证(如mac读取钥匙串,cache读取~/.cache)依赖HOME环境变量，不能覆盖HOME，所以覆盖XDG_CONFIG_HOME
-     */
-    override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        if (!AgentEnv.isThirdParty()) {
-            // 蓝盾默认镜像中有insteadOf,应该卸载,不然在凭证传递到下游插件时会导致凭证失效
-            unsetInsteadOf()
-            insteadOf()
-        } else {
-            val tempHomePath = Files.createTempDirectory("checkout")
-            val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
-            Files.createFile(newGitConfigPath)
-            logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
-            git.setEnvironmentVariable(GitConstants.HOME, tempHomePath.toString())
-            insteadOf()
-            configureXDGConfig()
-        }
-    }
-
-    override fun removeGlobalAuth() {
-        if (!AgentEnv.isThirdParty()) return
-        val gitXdgConfigHome = git.removeEnvironmentVariable(GitConstants.XDG_CONFIG_HOME)
-        if (!gitXdgConfigHome.isNullOrBlank()) {
-            val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
-            logger.info("Deleting Temporarily XDG_CONFIG_HOME='$gitXdgConfigHome'")
-            Files.deleteIfExists(gitXdgConfigFile)
-        }
-    }
-
     override fun removeAuth() {
         if (!serverInfo.httpProtocol) {
             return
@@ -270,7 +243,13 @@ class CredentialCheckoutAuthHelper(
         git.tryConfigUnset(configKey = GIT_CREDENTIAL_HELPER)
     }
 
-    override fun addSubmoduleCommand(commands: MutableList<String>) {
-        commands.add("git config credential.helper '!bash $credentialShellPath ${settings.pipelineTaskId}'")
+    override fun configSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
+            commands.add("git config --add credential.helper \"\" ")
+        }
+        commands.add("git config --add credential.helper '!bash $credentialShellPath ${settings.pipelineTaskId}'")
     }
 }

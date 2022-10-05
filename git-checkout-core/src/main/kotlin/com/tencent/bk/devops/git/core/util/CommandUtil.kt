@@ -45,8 +45,10 @@ import org.apache.commons.exec.LogOutputStream
 import org.apache.commons.exec.PumpStreamHandler
 import org.apache.commons.exec.environment.EnvironmentUtils
 import org.apache.commons.io.IOUtils
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
 
 object CommandUtil {
 
@@ -54,6 +56,7 @@ object CommandUtil {
      * 最大的输出日志行数
      */
     private const val MAX_LOG_SIZE = 100
+    private val logger = LoggerFactory.getLogger(CommandUtil::class.java)
 
     @SuppressWarnings("LongParameterList", "ComplexMethod", "LongMethod")
     fun execute(
@@ -173,11 +176,15 @@ object CommandUtil {
         printLogger: Boolean = false,
         allowAllExitCodes: Boolean = false
     ) {
-
-        val cmdLine = CommandLine.parse(command)
         if (printLogger) {
-            println("##[command]$ ${SensitiveLineParser.onParseLine(cmdLine.toStrings().joinToString(" "))}")
+            logger.debug(command)
         }
+        val file = Files.createTempFile("devops_script", ".sh").toFile()
+        file.setExecutable(true)
+        file.deleteOnExit()
+        file.writeText(command)
+        val cmdLine = CommandLine.parse(file.absolutePath)
+
         val executor = CommandLineExecutor()
         if (workingDirectory != null) {
             executor.workingDirectory = workingDirectory

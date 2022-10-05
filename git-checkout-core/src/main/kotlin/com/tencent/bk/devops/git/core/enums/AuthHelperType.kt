@@ -30,7 +30,6 @@ package com.tencent.bk.devops.git.core.enums
 enum class AuthHelperType {
     CUSTOM_CREDENTIAL,
     STORE_CREDENTIAL,
-    ASK_PASS,
     USERNAME_PASSWORD,
     SSH
 }

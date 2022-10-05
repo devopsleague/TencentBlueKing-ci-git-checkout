@@ -30,11 +30,10 @@ package com.tencent.bk.devops.git.core.service.helper.auth
 import com.tencent.bk.devops.git.core.constant.ContextConstants
 import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.AuthHelperType
-import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.enums.GitProtocolEnum
-import com.tencent.bk.devops.git.core.pojo.CredentialArguments
 import com.tencent.bk.devops.git.core.pojo.GitSourceSettings
+import com.tencent.bk.devops.git.core.pojo.ServerInfo
 import com.tencent.bk.devops.git.core.service.GitCommandManager
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.GitUtil
@@ -51,7 +50,7 @@ import java.nio.file.Paths
 class CredentialStoreAuthHelper(
     private val git: GitCommandManager,
     private val settings: GitSourceSettings
-) : CredentialAuthHelper(git = git, settings = settings) {
+) : HttpGitAuthHelper(git = git, settings = settings) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(CredentialStoreAuthHelper::class.java)
@@ -59,19 +58,17 @@ class CredentialStoreAuthHelper(
     private val storeFile = File.createTempFile("git_", "_credentials")
 
     override fun configureAuth() {
-        if (authInfo.username.isNullOrBlank() || authInfo.password.isNullOrBlank()) {
-            return
-        }
         logger.info("using store credential to set credentials ${authInfo.username}/******")
         EnvHelper.putContext(ContextConstants.CONTEXT_GIT_PROTOCOL, GitProtocolEnum.HTTP.name)
         git.config(
             configKey = GitConstants.GIT_CREDENTIAL_AUTH_HELPER,
             configValue = AuthHelperType.STORE_CREDENTIAL.name
         )
-        eraseOauth2Credential()
-        storeGlobalCredential()
-        writeStoreFile()
+        // 卸载上次可能没有清理的凭证配置
         git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_HELPER)
+        eraseOauth2Credential()
+        storeGlobalCredential(writeCompatibleHost = true)
+        writeStoreFile()
         if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
             git.tryDisableOtherGitHelpers(configScope = GitConfigScope.LOCAL)
         }
@@ -79,31 +76,6 @@ class CredentialStoreAuthHelper(
             configKey = GitConstants.GIT_CREDENTIAL_HELPER,
             configValue = "store --file='${storeFile.absolutePath}'"
         )
-    }
-
-    /**
-     * 存储全局凭证,保证凭证能够向下游插件传递,兼容http和https
-     *
-     * 1. 调用全局凭证管理,将用户名密码保存到凭证管理中使凭证能够向下游插件传递,同时覆盖构建机上错误的凭证
-     * 2. 保存全局凭证必须在禁用凭证之前,否则调用全局凭证无用
-     * 3. 保存的全局凭证在下游插件可能不生效，因为在同一个私有构建机，
-     *    如果同时执行多条流水线,每条流水线拉代码的账号oauth不同就可能被覆盖
-     */
-    private fun storeGlobalCredential() {
-        logger.info("store and overriding global credential for other plugins")
-        println("##[command]$ git credential approve")
-        // 同一服务多个域名时，需要保存不同域名的凭证
-        combinableHost { protocol, host ->
-            git.credential(
-                action = CredentialActionEnum.APPROVE,
-                inputStream = CredentialArguments(
-                    protocol = protocol,
-                    host = host,
-                    username = authInfo.username,
-                    password = authInfo.password
-                ).convertInputStream()
-            )
-        }
     }
 
     override fun removeAuth() {
@@ -121,35 +93,14 @@ class CredentialStoreAuthHelper(
         }
     }
 
-    /**
-     * 如果凭证获取成功,会调用凭证管理存储,如果覆盖HOME,会导致mac的osxkeychain凭证管理卡住,因为钥匙串存储在HOME目录，覆盖HOME后读取不到
-     */
-    override fun configGlobalAuth(copyGlobalConfig: Boolean) {
-        val tempHomePath = Files.createTempDirectory("checkout")
-        val newGitConfigPath = Paths.get(tempHomePath.toString(), ".gitconfig")
-        Files.createFile(newGitConfigPath)
-        logger.info("Temporarily overriding HOME='$tempHomePath' for fetching submodules")
-        git.setEnvironmentVariable(GitConstants.HOME, tempHomePath.toString())
-        insteadOf()
-        git.configAdd(
-            configKey = GitConstants.GIT_CREDENTIAL_HELPER,
-            configValue = "store --file='${storeFile.absolutePath}'",
-            configScope = GitConfigScope.GLOBAL
-        )
-        configureXDGConfig()
-    }
-
-    override fun removeGlobalAuth() {
-        val gitXdgConfigHome = git.removeEnvironmentVariable(GitConstants.XDG_CONFIG_HOME)
-        if (!gitXdgConfigHome.isNullOrBlank()) {
-            val gitXdgConfigFile = Paths.get(gitXdgConfigHome, "git", "config")
-            logger.info("Deleting Temporarily XDG_CONFIG_HOME='$gitXdgConfigHome'")
-            Files.deleteIfExists(gitXdgConfigFile)
+    override fun configSubmoduleAuthCommand(
+        moduleServerInfo: ServerInfo,
+        commands: MutableList<String>
+    ) {
+        if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
+            commands.add("git config --add credential.helper \"\" ")
         }
-    }
-
-    override fun addSubmoduleCommand(commands: MutableList<String>) {
-        commands.add("git config credential.helper 'store --file=${storeFile.absolutePath}'")
+        commands.add("git config --add credential.helper 'store --file=${storeFile.absolutePath}'")
     }
 
     private fun writeStoreFile() {

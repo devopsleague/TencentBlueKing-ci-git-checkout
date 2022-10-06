@@ -77,7 +77,6 @@ object SubmoduleUtil {
     }
 
     private fun getSubmodulePath(repositoryDir: File, name: String): String {
-        logger.debug("##[command]$ git config -f .gitmodules $SUBMODULE_REMOTE_PATTERN_CONFIG_KEY")
         return CommandUtil.execute(
             workingDirectory = repositoryDir,
             executable = "git",

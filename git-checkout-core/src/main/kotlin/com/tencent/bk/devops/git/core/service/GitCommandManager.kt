@@ -42,12 +42,14 @@ import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.FilterValueEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.enums.GitErrors
+import com.tencent.bk.devops.git.core.enums.OSType
 import com.tencent.bk.devops.git.core.exception.GitExecuteException
 import com.tencent.bk.devops.git.core.exception.RetryException
 import com.tencent.bk.devops.git.core.pojo.CommitLogInfo
 import com.tencent.bk.devops.git.core.pojo.GitOutput
 import com.tencent.bk.devops.git.core.service.helper.RetryHelper
 import com.tencent.bk.devops.git.core.service.helper.VersionHelper
+import com.tencent.bk.devops.git.core.util.AgentEnv
 import com.tencent.bk.devops.git.core.util.CommandUtil
 import com.tencent.bk.devops.git.core.util.EnvHelper
 import com.tencent.bk.devops.git.core.util.RegexUtil
@@ -271,7 +273,7 @@ class GitCommandManager(
             #2 当构建机重启后，worker-agent自启动会导致HOME环境变量丢失,在执行全局配置时会报fatal: $HOME not set
             将全局环境变量变成本地,此时凭证无法全局传递，只能在当前仓库传递
          */
-        if (System.getenv(HOME) == null && gitEnv[HOME] == null && configScope == GitConfigScope.GLOBAL) {
+        if (isNotHomeEnv() && configScope == GitConfigScope.GLOBAL) {
             scope = GitConfigScope.LOCAL
         }
         // 低于git 1.9以下的版本没有--local参数,所以--local直接去掉
@@ -289,6 +291,10 @@ class GitCommandManager(
             args.add(configValue)
         }
         return args
+    }
+
+    private fun isNotHomeEnv(): Boolean {
+        return AgentEnv.getOS() != OSType.WINDOWS && System.getenv(HOME) == null && gitEnv[HOME] == null
     }
 
     fun tryDisableOtherGitHelpers(configScope: GitConfigScope = GitConfigScope.LOCAL) {

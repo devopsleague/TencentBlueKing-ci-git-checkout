@@ -108,7 +108,7 @@ abstract class HttpGitAuthHelper(
             return
         }
         logger.info("removing global credential for `oauth2` username")
-        println("##[command]$ git credential erase")
+        println("##[command]$ git credential reject")
         // 同一服务多个域名时，需要保存不同域名的凭证
         getHostList().forEach { cHost ->
             listOf("https", "http").forEach { cProtocol ->

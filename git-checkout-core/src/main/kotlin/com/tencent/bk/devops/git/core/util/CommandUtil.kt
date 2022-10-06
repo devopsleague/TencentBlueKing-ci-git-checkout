@@ -180,10 +180,14 @@ object CommandUtil {
         command: String,
         workingDirectory: File?,
         printLogger: Boolean = false,
+        logLevel: CommandLogLevel = CommandLogLevel.INFO,
         allowAllExitCodes: Boolean = false
     ) {
         if (printLogger) {
-            logger.debug("##[command]$ ${command.replace("\n", "&&")}")
+            printLog(
+                log = "##[command]$ ${command.replace("\n", "&&")}",
+                logLevel = logLevel
+            )
         }
         val file = if (AgentEnv.getOS() == OSType.WINDOWS) {
             Files.createTempFile("devops_script", ".bat").toFile()

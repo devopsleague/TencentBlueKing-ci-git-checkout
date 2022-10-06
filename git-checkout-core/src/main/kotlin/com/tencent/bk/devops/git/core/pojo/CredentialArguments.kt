@@ -54,7 +54,7 @@ data class CredentialArguments(
         if (password != null) {
             builder.append("password=").append(password).append("\n")
         }
-        logger.info("host:$host,protocol:$protocol")
+        logger.debug("host:$host,protocol:$protocol")
         return builder.toString()
     }
 

@@ -202,7 +202,7 @@ object CommandUtil {
 
                 val tmpLine = SensitiveLineParser.onParseLine(line)
                 if (printLogger) {
-                    println("  $tmpLine")
+                    logger.debug("  $tmpLine")
                 }
             }
         }

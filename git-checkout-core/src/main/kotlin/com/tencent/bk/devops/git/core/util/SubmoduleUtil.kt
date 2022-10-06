@@ -43,7 +43,7 @@ object SubmoduleUtil {
             executable = "git",
             args = listOf("config", "--get-regexp", SUBMODULE_REMOTE_PATTERN_CONFIG_KEY),
             allowAllExitCodes = true,
-            printLogger = false
+            printLogger = true
         ).stdOuts
 
         val submodules = mutableListOf<GitSubmodule>()
@@ -74,7 +74,7 @@ object SubmoduleUtil {
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.path"),
             allowAllExitCodes = true,
-            printLogger = false
+            printLogger = true
         ).stdOut
     }
 
@@ -84,7 +84,7 @@ object SubmoduleUtil {
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.url"),
             allowAllExitCodes = true,
-            printLogger = false
+            printLogger = true
         ).stdOut
     }
 

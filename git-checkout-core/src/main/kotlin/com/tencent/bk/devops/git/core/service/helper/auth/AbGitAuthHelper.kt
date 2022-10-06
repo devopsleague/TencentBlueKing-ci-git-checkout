@@ -113,10 +113,10 @@ abstract class AbGitAuthHelper(
     }
 
     override fun removeSubmoduleAuth() {
-        SubmoduleUtil.getSubmodules(
+        SubmoduleUtil.submoduleForeach(
             repositoryDir = File(settings.repositoryPath),
             recursive = settings.nestedSubmodules
-        ).forEach { submodule ->
+        ) { submodule ->
             val moduleServerInfo = GitUtil.getServerInfo(submodule.url)
             // 如果是相同的git服务端,但是域名不同,则执行unset insteadOf命令
             if (getHostList().contains(moduleServerInfo.hostName)) {

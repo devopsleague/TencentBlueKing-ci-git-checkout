@@ -27,7 +27,9 @@
 
 package com.tencent.bk.devops.git.core.util
 
+import com.tencent.bk.devops.git.core.enums.CommandLogLevel
 import com.tencent.bk.devops.git.core.pojo.GitSubmodule
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.regex.Pattern
 
@@ -36,14 +38,20 @@ object SubmoduleUtil {
     private const val SUBMODULE_REMOTE_PATTERN_CONFIG_KEY = "^submodule\\.(.+)\\.url"
     private const val SUBMODULE_REMOTE_PATTERN_STRING = SUBMODULE_REMOTE_PATTERN_CONFIG_KEY + "\\s+[^\\s]+$"
     private val submodulePattern = Pattern.compile(SUBMODULE_REMOTE_PATTERN_STRING)
+    private val logger = LoggerFactory.getLogger(SubmoduleUtil::class.java)
 
     fun getSubmodules(repositoryDir: File, recursive: Boolean): List<GitSubmodule> {
+        logger.debug("enter submodule path:${repositoryDir.absolutePath}")
+        if (!File(repositoryDir, ".gitmodules").exists()) {
+            return emptyList()
+        }
         val submoduleCfg = CommandUtil.execute(
             workingDirectory = repositoryDir,
             executable = "git",
             args = listOf("config", "--get-regexp", SUBMODULE_REMOTE_PATTERN_CONFIG_KEY),
             allowAllExitCodes = true,
-            printLogger = true
+            printLogger = true,
+            logLevel = CommandLogLevel.DEBUG
         ).stdOuts
 
         val submodules = mutableListOf<GitSubmodule>()
@@ -56,7 +64,7 @@ object SubmoduleUtil {
                     GitSubmodule(
                         name = submoduleName,
                         path = path,
-                        absolutePath = File(repositoryDir, path).path,
+                        absolutePath = File(repositoryDir, path).absolutePath,
                         url = getSubmoduleUrl(repositoryDir = repositoryDir, name = submoduleName)
                     )
                 )
@@ -69,12 +77,14 @@ object SubmoduleUtil {
     }
 
     private fun getSubmodulePath(repositoryDir: File, name: String): String {
+        logger.debug("##[command]$ git config -f .gitmodules $SUBMODULE_REMOTE_PATTERN_CONFIG_KEY")
         return CommandUtil.execute(
             workingDirectory = repositoryDir,
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.path"),
             allowAllExitCodes = true,
-            printLogger = true
+            printLogger = true,
+            logLevel = CommandLogLevel.DEBUG
         ).stdOut
     }
 
@@ -84,7 +94,8 @@ object SubmoduleUtil {
             executable = "git",
             args = listOf("config", "-f", ".gitmodules", "--get", "submodule.$name.url"),
             allowAllExitCodes = true,
-            printLogger = true
+            printLogger = true,
+            logLevel = CommandLogLevel.DEBUG
         ).stdOut
     }
 

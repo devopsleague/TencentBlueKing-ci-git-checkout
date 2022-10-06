@@ -27,8 +27,7 @@
 
 package com.tencent.bk.devops.git.core.enums
 
-enum class CredentialActionEnum(val value: String) {
-    APPROVE("approve"),
-    FILL("fill"),
-    REJECT("reject")
+enum class CommandLogLevel {
+    INFO,
+    DEBUG
 }

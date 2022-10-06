@@ -30,6 +30,7 @@ package com.tencent.bk.devops.git.core.util
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_TOTAL_SIZE
 import com.tencent.bk.devops.git.core.constant.ContextConstants.CONTEXT_TRANSFER_RATE
 import com.tencent.bk.devops.git.core.constant.GitConstants
+import com.tencent.bk.devops.git.core.enums.CommandLogLevel
 import com.tencent.bk.devops.git.core.enums.GitErrors
 import com.tencent.bk.devops.git.core.enums.OSType
 import com.tencent.bk.devops.git.core.exception.GitExecuteException
@@ -69,6 +70,7 @@ object CommandUtil {
         allowAllExitCodes: Boolean = false,
         logType: LogType = LogType.TEXT,
         printLogger: Boolean = true,
+        logLevel: CommandLogLevel = CommandLogLevel.INFO,
         handleErrStream: Boolean = true
     ): GitOutput {
         val executor = CommandLineExecutor()
@@ -86,7 +88,7 @@ object CommandUtil {
                 }
                 val tmpLine = SensitiveLineParser.onParseLine(line)
                 if (printLogger) {
-                    println("  $tmpLine")
+                    printLog("  $tmpLine", logLevel)
                 }
                 val tmpGitErrors = parseError(line.trim())
                 if (tmpGitErrors != null) {
@@ -130,7 +132,10 @@ object CommandUtil {
         }
         val command = CommandLine.parse(executable).addArguments(args.toTypedArray(), false)
         if (printLogger) {
-            println("##[command]$ ${SensitiveLineParser.onParseLine(command.toStrings().joinToString(" "))}")
+            printLog(
+                "##[command]$ ${SensitiveLineParser.onParseLine(command.toStrings().joinToString(" "))}",
+                logLevel
+            )
         }
         try {
             // 系统环境变量 + 运行时环境变量
@@ -233,6 +238,18 @@ object CommandUtil {
                 EnvHelper.putContext(CONTEXT_TRANSFER_RATE, transferRate)
                 EnvHelper.putContext(CONTEXT_TOTAL_SIZE, totalSize)
             }
+        }
+    }
+
+    private fun printLog(
+        log: String,
+        logLevel: CommandLogLevel
+    ) {
+        when (logLevel) {
+            CommandLogLevel.INFO ->
+                println(log)
+            CommandLogLevel.DEBUG ->
+                logger.debug(log)
         }
     }
 }

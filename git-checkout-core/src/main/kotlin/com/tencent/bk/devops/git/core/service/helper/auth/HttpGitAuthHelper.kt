@@ -113,7 +113,7 @@ abstract class HttpGitAuthHelper(
         getHostList().forEach { cHost ->
             listOf("https", "http").forEach { cProtocol ->
                 git.credential(
-                    action = CredentialActionEnum.ERASE,
+                    action = CredentialActionEnum.REJECT,
                     inputStream = CredentialArguments(
                         protocol = cProtocol,
                         host = cHost,

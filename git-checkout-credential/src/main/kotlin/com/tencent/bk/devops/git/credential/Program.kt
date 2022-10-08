@@ -31,6 +31,7 @@ import com.microsoft.alm.secret.Credential
 import com.tencent.bk.devops.git.credential.Constants.GIT_CREDENTIAL_COMPATIBLEHOST
 import com.tencent.bk.devops.git.credential.helper.GitHelper
 import com.tencent.bk.devops.git.credential.helper.LockHelper
+import com.tencent.bk.devops.git.credential.helper.Trace
 import com.tencent.bk.devops.git.credential.storage.CredentialStore
 import java.io.BufferedReader
 import java.io.InputStream
@@ -90,6 +91,7 @@ class Program(
             }
             // 保存插件的凭证,为了解决当出现`拉代码1->拉代码2-bash:git push 代码1`,
             // 如果拉仓库2的身份没有仓库1的权限，那么bash就会报错,因为凭证会被拉代码2插件给覆盖
+            Trace.writeLine("taskId:$taskId")
             if (!taskId.isNullOrBlank()) {
                 credentialStore.add(
                     getTaskUri(targetUri),
@@ -101,6 +103,7 @@ class Program(
         LockHelper.lock()
     }
 
+    @SuppressWarnings("NestedBlockDepth")
     private fun CredentialArguments.compatible(action: (URI) -> Unit) {
         val compatibleHost = GitHelper.tryConfigGet(
             configKey = GIT_CREDENTIAL_COMPATIBLEHOST,
@@ -108,10 +111,10 @@ class Program(
         )
         // 同一服务多个域名时，需要保存不同域名的凭证
         if (!compatibleHost.isNullOrBlank() && compatibleHost.contains(host)) {
-            compatibleHost.split(",").forEach { cHost ->
+            compatibleHost.split(",").forEach host@{ cHost ->
                 listOf("https", "http")
-                    .filter { it != protocol && it != host }
-                    .forEach { cProtocol ->
+                    .forEach protocol@{ cProtocol ->
+                        if (cProtocol == protocol && cHost == host) return@protocol
                         action.invoke(URI("$cProtocol://$cHost/"))
                     }
             }

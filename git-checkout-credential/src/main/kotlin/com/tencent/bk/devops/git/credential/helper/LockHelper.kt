@@ -45,7 +45,12 @@ object LockHelper {
         if (!lockFile.exists()) {
             return true
         }
-        return lockFile.readText() == (System.getenv(BK_CI_BUILD_ID) ?: "")
+        return if (lockFile.readText() == (System.getenv(BK_CI_BUILD_ID) ?: "")) {
+            lockFile.delete()
+            true
+        } else {
+            false
+        }
     }
 
     private fun getLockFile(): File {

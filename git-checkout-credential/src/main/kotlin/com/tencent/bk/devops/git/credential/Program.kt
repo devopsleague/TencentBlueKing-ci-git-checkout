@@ -110,7 +110,7 @@ class Program(
         if (!compatibleHost.isNullOrBlank() && compatibleHost.contains(host)) {
             compatibleHost.split(",").forEach { cHost ->
                 listOf("https", "http")
-                    .filter { it != protocol && host != cHost }
+                    .filter { it != protocol && it != host }
                     .forEach { cProtocol ->
                         action.invoke(URI("$cProtocol://$cHost/"))
                     }

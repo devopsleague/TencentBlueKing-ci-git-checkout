@@ -30,6 +30,13 @@ package com.tencent.bk.devops.git.core.service.helper
 interface IGitAuthHelper {
 
     /**
+     * 清理上一次构建执行的授权
+     *
+     * 当用户取消时,post action可能没有执行导致auth没有清理,应该清理上一次构建执行的凭证
+     */
+    fun removePreviousAuth()
+
+    /**
      * 配置当前仓库凭证
      */
     fun configureAuth()

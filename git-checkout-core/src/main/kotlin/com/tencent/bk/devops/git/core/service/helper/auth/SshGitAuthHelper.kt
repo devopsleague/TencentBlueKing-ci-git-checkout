@@ -43,6 +43,16 @@ class SshGitAuthHelper(
     private val settings: GitSourceSettings
 ) : AbGitAuthHelper(git = git, settings = settings) {
 
+    override fun removePreviousAuth() {
+        val insteadOfKey = git.tryConfigGet(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
+        if (insteadOfKey.isNotBlank()) {
+            git.submoduleForeach(
+                command = "git config --unset-all $insteadOfKey || true",
+                recursive = true
+            )
+        }
+    }
+
     override fun configureAuth() {
         if (authInfo.privateKey.isNullOrBlank()) {
             throw ParamInvalidException(errorMsg = "private key must not be empty")
@@ -54,9 +64,16 @@ class SshGitAuthHelper(
             configKey = GitConstants.GIT_CREDENTIAL_AUTH_HELPER,
             configValue = AuthHelperType.SSH.name
         )
+        // 卸载子模块insteadOf时使用
+        git.config(
+            configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY,
+            configValue = "url.git@${serverInfo.hostName}:.insteadof"
+        )
     }
 
-    override fun removeAuth() = Unit
+    override fun removeAuth() {
+        git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
+    }
 
     override fun insteadOf() {
         val insteadOfHosts = getHostList()

@@ -102,6 +102,11 @@ class CredentialCheckoutAuthHelper(
             git.tryDisableOtherGitHelpers(configScope = GitConfigScope.LOCAL)
         }
         git.config(configKey = GitConstants.GIT_CREDENTIAL_TASKID, configValue = settings.pipelineTaskId)
+        // 卸载子模块insteadOf时使用
+        git.config(
+            configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY,
+            configValue = "url.${serverInfo.origin}/.insteadOf"
+        )
         git.configAdd(
             configKey = GIT_CREDENTIAL_HELPER,
             configValue = "!bash '$credentialShellPath' ${settings.pipelineTaskId}"
@@ -241,6 +246,7 @@ class CredentialCheckoutAuthHelper(
             }
         }
         git.tryConfigUnset(configKey = GIT_CREDENTIAL_HELPER)
+        git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
     }
 
     override fun configSubmoduleAuthCommand(

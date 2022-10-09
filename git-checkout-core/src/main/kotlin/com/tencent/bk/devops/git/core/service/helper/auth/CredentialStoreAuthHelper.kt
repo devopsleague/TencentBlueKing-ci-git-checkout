@@ -72,6 +72,11 @@ class CredentialStoreAuthHelper(
         if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {
             git.tryDisableOtherGitHelpers(configScope = GitConfigScope.LOCAL)
         }
+        // 卸载子模块insteadOf时使用
+        git.config(
+            configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY,
+            configValue = "url.${serverInfo.origin}/.insteadOf"
+        )
         git.configAdd(
             configKey = GitConstants.GIT_CREDENTIAL_HELPER,
             configValue = "store --file='${storeFile.absolutePath}'"
@@ -90,6 +95,7 @@ class CredentialStoreAuthHelper(
                 Files.deleteIfExists(Paths.get(credentialFilePath))
             }
             git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_HELPER)
+            git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
         }
     }
 

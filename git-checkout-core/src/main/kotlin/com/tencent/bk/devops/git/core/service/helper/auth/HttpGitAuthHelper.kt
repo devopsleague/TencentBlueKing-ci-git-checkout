@@ -27,6 +27,7 @@
 
 package com.tencent.bk.devops.git.core.service.helper.auth
 
+import com.tencent.bk.devops.git.core.constant.GitConstants
 import com.tencent.bk.devops.git.core.enums.CredentialActionEnum
 import com.tencent.bk.devops.git.core.enums.GitConfigScope
 import com.tencent.bk.devops.git.core.pojo.CredentialArguments
@@ -47,6 +48,17 @@ abstract class HttpGitAuthHelper(
     companion object {
         private const val OAUTH2 = "oauth2"
         private val logger = LoggerFactory.getLogger(HttpGitAuthHelper::class.java)
+    }
+
+    override fun removePreviousAuth() {
+        git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_HELPER)
+        val insteadOfKey = git.tryConfigGet(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
+        if (insteadOfKey.isNotBlank()) {
+            git.submoduleForeach(
+                command = "git config --unset-all credential.helper;git config --unset-all $insteadOfKey || true",
+                recursive = true
+            )
+        }
     }
 
     override fun insteadOf() {

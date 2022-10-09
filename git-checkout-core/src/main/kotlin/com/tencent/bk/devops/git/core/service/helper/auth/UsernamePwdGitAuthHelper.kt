@@ -49,7 +49,6 @@ class UsernamePwdGitAuthHelper(
 
     companion object {
         private val logger = LoggerFactory.getLogger(UsernamePwdGitAuthHelper::class.java)
-        private const val INSTEADOF_URL_CONFIG = "core.insteadOfUrl"
     }
 
     override fun configureAuth() {
@@ -64,6 +63,11 @@ class UsernamePwdGitAuthHelper(
         git.config(
             configKey = GitConstants.GIT_CREDENTIAL_AUTH_HELPER,
             configValue = AuthHelperType.USERNAME_PASSWORD.name
+        )
+        // 卸载子模块insteadOf时使用
+        git.config(
+            configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY,
+            configValue = getInsteadofUrl()
         )
         EnvHelper.putContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER, AuthHelperType.USERNAME_PASSWORD.name)
     }

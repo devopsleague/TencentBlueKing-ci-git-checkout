@@ -64,8 +64,6 @@ class CredentialStoreAuthHelper(
             configKey = GitConstants.GIT_CREDENTIAL_AUTH_HELPER,
             configValue = AuthHelperType.STORE_CREDENTIAL.name
         )
-        // 卸载上次可能没有清理的凭证配置
-        git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_HELPER)
         eraseOauth2Credential()
         storeGlobalCredential(writeCompatibleHost = true)
         writeStoreFile()

@@ -49,6 +49,7 @@ class GitAuthHandler(
         val startEpoch = System.currentTimeMillis()
         try {
             logger.groupStart("Setting up auth")
+            authHelper.removePreviousAuth()
             authHelper.configureAuth()
             authHelper.configGlobalAuth()
             logger.groupEnd("")

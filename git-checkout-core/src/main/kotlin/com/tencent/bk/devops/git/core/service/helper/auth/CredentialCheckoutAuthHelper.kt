@@ -95,7 +95,6 @@ class CredentialCheckoutAuthHelper(
         )
         EnvHelper.putContext(GitConstants.GIT_CREDENTIAL_AUTH_HELPER, AuthHelperType.CUSTOM_CREDENTIAL.name)
 
-        git.tryConfigUnset(configKey = GIT_CREDENTIAL_HELPER)
         eraseOauth2Credential()
         storeGlobalCredential(writeCompatibleHost = false)
         if (git.isAtLeastVersion(GitConstants.SUPPORT_EMPTY_CRED_HELPER_GIT_VERSION)) {

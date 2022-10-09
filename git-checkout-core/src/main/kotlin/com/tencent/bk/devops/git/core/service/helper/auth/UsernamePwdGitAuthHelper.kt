@@ -101,6 +101,7 @@ class UsernamePwdGitAuthHelper(
             if (preMerge && !sourceRepoUrlEqualsRepoUrl) {
                 git.remoteSetUrl(remoteName = GitConstants.DEVOPS_VIRTUAL_REMOTE_NAME, remoteUrl = sourceRepositoryUrl)
             }
+            git.tryConfigUnset(configKey = GitConstants.GIT_CREDENTIAL_INSTEADOF_KEY)
         }
     }
 

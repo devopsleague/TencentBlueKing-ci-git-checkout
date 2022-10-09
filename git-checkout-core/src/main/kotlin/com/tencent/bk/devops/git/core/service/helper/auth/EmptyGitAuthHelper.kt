@@ -33,6 +33,9 @@ import com.tencent.bk.devops.git.core.service.helper.IGitAuthHelper
  * 空的凭证管理
  */
 class EmptyGitAuthHelper : IGitAuthHelper {
+
+    override fun removePreviousAuth() = Unit
+
     override fun configureAuth() = Unit
 
     override fun removeAuth() = Unit
